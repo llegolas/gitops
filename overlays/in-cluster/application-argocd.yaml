@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+spec:
+  source:
+    helm:
+      values: |
+        configs:
+          params:
+            server.insecure: true
+        crds:
+          install: true
+        dex:
+          enabled: false
+        global:
+          domain: argocd.minikube.home
+        server:
+          certificate:
+            enabled: true
+            issuer:
+              group: cert-manager.io
+              kind: ClusterIssuer
+              name: ca-issuer
+          config:
+            repositories: |
+              - type: git
+                url: https://github.com/llegolas/gitops.git
+              - name: argo-helm
+                type: helm
+                url: https://argoproj.github.io/argo-helm
+          configEnabled: true
+          ingress:
+            annotations:
+              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+            enabled: true
+            tls: true
