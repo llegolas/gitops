@@ -9,12 +9,31 @@ spec:
         configs:
           cm:
             exec.enabled: true
+            kustomize.buildOptions: --enable-helm
           params:
-            server.insecure: true
+            server.insecure: false
         crds:
           install: true
         dex:
           enabled: false
+        extraObjects:
+        - apiVersion: argoproj.io/v1alpha1
+          kind: AppProject
+          metadata:
+            name: argocd
+            namespace: argocd
+          spec:
+            clusterResourceWhitelist:
+            - group: '*'
+              kind: '*'
+            description: Argocd Project
+            destinations:
+            - namespace: '*'
+              server: '*'
+            orphanedResources:
+              warn: false
+            sourceRepos:
+            - '*'
         global:
           domain: argocd.minikube.home
         server:
@@ -34,6 +53,9 @@ spec:
           configEnabled: true
           ingress:
             annotations:
+              nginx.ingress.kubernetes.io/backend-protocol: HTTPS
               nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/ssl-passthrough: "true"
             enabled: true
             tls: true
+
