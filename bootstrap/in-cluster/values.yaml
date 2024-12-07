@@ -8,10 +8,11 @@ global:
   domain: argocd.minikube.home
 
 configs:
+  params:
+    server.insecure: false
   cm:
     exec.enabled: true
-  params:
-    server.insecure: true
+    kustomize.buildOptions: --enable-helm
 
 server:
   certificate:
@@ -26,6 +27,8 @@ server:
     tls: true
     annotations:
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
 
   configEnabled: true
   config:
@@ -35,4 +38,23 @@ server:
       - name: argo-helm
         type: helm
         url: https://argoproj.github.io/argo-helm
+
+extraObjects:
+  - apiVersion: argoproj.io/v1alpha1
+    kind: AppProject
+    metadata:
+      name: argocd
+      namespace: argocd
+    spec:
+      clusterResourceWhitelist:
+      - group: '*'
+        kind: '*'
+      description: Argocd Project
+      destinations:
+      - namespace: '*'
+        server: '*'
+      orphanedResources:
+        warn: false
+      sourceRepos:
+      - '*'
 
