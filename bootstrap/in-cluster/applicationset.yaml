@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: guestbook
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - git:
+      repoURL: https://github.com/argoproj/argo-cd.git
+      revision: HEAD
+      files:
+      - path: "overlays/in-cluster/**/config.json"
+      values:
+        cluster: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: '{{ .path.basenameNormalized }}'
+    spec:
+      project: argocd
+      destination:
+        server: '{{.values.cluster}}'
+        namespace: guestbook
+  templatePatch: |
+    spec:
+      sources:
+      {{- if .helm }}
+      - repoURL: {{ .helm.repo }}
+        targetRevision: {{ .helm.targetRevision }}
+        {{- if .helm.chart }}
+        chart: "{{ .helm.chart }}"
+        {{- else }}
+        path: "{{ .helm.path }}"
+        {{- end }}
+        helm:
+          valueFiles:
+        
+      {{- if .helm.repoValues }}
+      - repoURL: {{.helm.repoValues}}
+        targetRevision:
+        ref: values
+      {{- end }}
+
+      {{- else }}
+      - repoURL: https://github.com/llegolas/gitops.git
+        targetRevision: HEAD
+        path: "{{.path.path}}/files"
+      {{- end }}
