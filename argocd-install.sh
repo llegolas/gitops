@@ -32,8 +32,6 @@ if [ "$ans" == "y" ]; then
     --namespace=$ARGOCD_NS \
     --create-namespace \
     -f $VALUES_FILE
-
-  kubectl apply -n $ARGOCD_NS -f $DIRNAME/application.yaml
 else
   echo "INFO: Exiting without action"
   exit 0
