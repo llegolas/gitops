@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - ../../base/argocd
   - ../../base/nfs-client-provisioner
+  - ../../base/ingress-nginx
 
 patches:
   - path: application-nfs-client-provisioner.yaml
@@ -13,4 +14,8 @@ patches:
     target:
       kind: Application
       name: argocd
+  - path: application-ingress-nginx.yaml
+    target:
+      kind: Application
+      name: ingress-nginx
 
