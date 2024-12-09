@@ -6,6 +6,8 @@ spec:
   source:
     helm:
       values: |
+        defaultBackend:
+          enabled: true
         controller:
           updateStrategy:
             type: Recreate
