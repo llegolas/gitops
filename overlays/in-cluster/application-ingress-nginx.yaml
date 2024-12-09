@@ -7,6 +7,8 @@ spec:
     helm:
       values: |
         controller:
+          updateStrategy:
+            type: Recreate
           extraArgs:
             enable-ssl-passthrough: true
           hostPort:
