@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+spec:
+  source:
+    helm:
+      values: |
+        controller:
+          extraArgs:
+            enable-ssl-passthrough: true
+          hostPort:
+            enabled: true
+          service:
+            external:
+              enabled: false
+          watchIngressWithoutClass: true
