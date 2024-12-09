@@ -27,12 +27,12 @@ echo "INFO: Argocd will be installed in $ARGOCD_NS namespace with values file $V
 echo -n "Do you want to proceed? [y/n]: "
 read ans
 if [ "$ans" == "y" ]; then
+  kubectl kustomize https://github.com/argoproj/argo-cd.git/manifests/crds/ | kubectl apply -f -
   helm upgrade --install argocd argo/argo-cd \
     --namespace=$ARGOCD_NS \
     --create-namespace \
     -f $VALUES_FILE
 
-#  kubectl apply -n $ARGOCD_NS -f $DIRNAME/project.yaml
   kubectl apply -n $ARGOCD_NS -f $DIRNAME/application.yaml
 else
   echo "INFO: Exiting without action"

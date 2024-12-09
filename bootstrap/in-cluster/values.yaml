@@ -1,5 +1,5 @@
 crds:
-  install: true
+  install: false
 
 dex:
   enabled: false
