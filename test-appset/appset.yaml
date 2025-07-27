@@ -1,0 +1,67 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ultimate-mixed-apps-path-inference
+  namespace: argocd
+spec:
+  generators:
+  - git:
+      repoURL: https://github.com/llegolas/gitops.git # REPLACE with your MONOREPO URL
+      revision: HEAD
+      requeueAfterSeconds: 60 # Scan frequently
+
+      files:
+      # Pattern for all Helm values files (will differentiate based on subpath in template)
+      - path: "test-appset/environments/**/helm-apps/*.yaml"
+      # Pattern for Plain YAML / Kustomize applications
+      - path: "test-appset/environments/**/manifests/**/*.yaml"
+
+  template:
+    metadata:
+      # --- Helper Variables (calculated once for reuse) ---
+      # Get the environment (e.g., 'dev', 'prod')
+      '{{- $env := index (split .path "/") 2 -}}'
+
+      # --- Dynamic Name Generation based on path segments ---
+      name: '{{- if contains .path "/helm-apps/" -}}helm-{{- `{{ .path | base | trimSuffix ".yaml" }}` -}}
+      {{- else if contains .path "/manifests/" -}}manifests-`{{ .path | base | trimSuffix ".yaml" }}` -}}
+      {{- end -}}'
+
+      labels:
+        app.kubernetes.io/managed-by: argocd-applicationset
+        # Infer type label (optional, but good for UI filtering)
+        app.source.type: '{{- if contains .path "/helm-apps/" -}}helm
+                          {{- else if contains .path "/manifests/" -}}plain-yaml-or-kustomize
+                          {{- end -}}'
+        environment: "{{ $env }}"
+
+    spec:
+      project: default # Adjust or make dynamic based on environment label
+      destination:
+        server: https://kubernetes.default.svc
+        # Dynamic Namespace based on path segments
+        namespace: '{{ $env }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+
+      source:
+        # Default repoURL for the application's source (will be overridden for external Helm types)
+        repoURL: https://github.com/llegolas/gitops.git # REPLACE with your MONOREPO URL
+        targetRevision: HEAD # Default targetRevision
+        # --- Conditional Source Configuration based on path segments ---
+        {{- if contains .path "/helm-apps/" }}
+        path: 'test-appset/helm-chart/simple-chart/'        # Path to the chart within that repo
+        helm:
+          valueFiles:
+            - '{{.path}}' # Path to the values.yaml within the monorepo
+        {{- else if contains .path "/manifests/" }}
+        # Plain YAML or Kustomize application
+        path: '{{$appBaseDir}}' # The directory containing manifests
+        directory:
+          recurse: true
+        kustomize: {} # Explicitly enable Kustomize detection
+        {{- end }}

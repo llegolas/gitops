@@ -1,0 +1,7 @@
+# Values for my-simple-chart hosted in shared-helm-charts repo
+replicaCount: 2
+image:
+  repository: nginx
+  tag: 1.25.0
+service:
+  type: ClusterIP

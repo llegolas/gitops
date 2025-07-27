@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-plain-app-deployment
+  namespace: my-plain-app-dev # Will be overridden by ApplicationSet
+  labels:
+    app: my-plain-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-plain-app
+  template:
+    metadata:
+      labels:
+        app: my-plain-app
+    spec:
+      containers:
+      - name: my-plain-app
+        image: nginx:latest
+        ports:
+        - containerPort: 80
