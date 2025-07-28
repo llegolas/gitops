@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: my-plain-app-deployment
-  namespace: my-plain-app-dev # Will be overridden by ApplicationSet
+  namespace: dev
   labels:
     app: my-plain-app
 spec:
