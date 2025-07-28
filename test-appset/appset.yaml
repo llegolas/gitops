@@ -54,7 +54,7 @@ spec:
       {{- else if contains "/manifests/" .path.path }}
         # Plain YAML or Kustomize application
         path: {{.path.path}} # The directory containing manifests
-        directory:
-          recurse: true
-        kustomize: {} # Explicitly enable Kustomize detection
+        # below might be needed
+        # directory:
+        #   recurse: false
       {{- end }}
