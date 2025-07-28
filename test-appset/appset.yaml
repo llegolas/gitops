@@ -22,14 +22,14 @@ spec:
 
   template:
     metadata:
-      name: '{{if contains "/helm-apps" .path.path }}{{trimSuffix ".yaml" .path.filename}}{{ else if contains "/manifests/" .path.path }}{{ .path.basename }}{{ end }}'
+      name: '{{ if contains "/helm-apps" .path.path }}{{ trimSuffix ".yaml" .path.filename }}{{ else if contains "/manifests/" .path.path }}{{ .path.basename }}{{ end }}'
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
     spec:
       project: default # Adjust or make dynamic based on environment label 
       destination:
         server: https://kubernetes.default.svc
-        namespace: '{{index .path.segments 2}}'
+        namespace: '{{ index .path.segments 2 }}'
       syncPolicy:
         automated:
           prune: true
@@ -43,9 +43,10 @@ spec:
       - repoURL: https://github.com/llegolas/gitops.git # REPLACE with your MONOREPO URL
         targetRevision: HEAD # Default targetRevision
       {{- if contains "/helm-apps" .path.path }}
+        # helm based app
         path: "test-appset/helm-chart/simple-chart/"
         helm:
-          releaseName: {{trimSuffix ".yaml" .path.filename}}
+          releaseName: {{ trimSuffix ".yaml" .path.filename }}
           valueFiles:
             - $values/{{.path.path}}/{{.path.filename}}
       - repoURL: https://github.com/llegolas/gitops.git
@@ -53,8 +54,5 @@ spec:
         ref: values
       {{- else if contains "/manifests/" .path.path }}
         # Plain YAML or Kustomize application
-        path: {{.path.path}} # The directory containing manifests
-        # below might be needed
-        # directory:
-        #   recurse: false
+        path: {{ .path.path }}
       {{- end }}
