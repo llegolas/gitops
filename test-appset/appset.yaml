@@ -11,17 +11,20 @@ spec:
       repoURL: https://github.com/llegolas/gitops.git
       revision: HEAD
       requeueAfterSeconds: 60
-      # files:
-      # - path: "test-appset/environments/*/helm-apps/*.yaml"
+      files:
+      - path: "test-appset/environments/*/helm-apps/*.yaml"
+  - git:
+      repoURL: https://github.com/llegolas/gitops.git
+      revision: HEAD
+      requeueAfterSeconds: 60     
       directories: 
       - path: "test-appset/environments/*/manifests/*"
 
   template:
     metadata:
-      name: '{{if contains "/helm-apps/" .path.path }}{{ .path.filename | trimSuffix ".yaml" }}{{ else if contains "/manifests/" .path.path }}{{ .path.basename }}{{ end }}'
+      name: '{{if contains "/helm-apps" .path.path }}{{trimSuffix ".yaml" .path.filename}}{{ else if contains "/manifests/" .path.path }}{{ .path.basename }}{{ end }}'
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
-  
     spec:
       project: default # Adjust or make dynamic based on environment label 
       destination:
@@ -36,19 +39,22 @@ spec:
   
   templatePatch: |
     spec:
-      source:
-        repoURL: https://github.com/llegolas/gitops.git # REPLACE with your MONOREPO URL
+      sources:
+      - repoURL: https://github.com/llegolas/gitops.git # REPLACE with your MONOREPO URL
         targetRevision: HEAD # Default targetRevision
-        # --- Conditional Source Configuration based on path segments ---
-        {{- if contains "/helm-apps/" .path.path }}
-        path: "test-appset/helm-chart/simple-chart/"        # Path to the chart within that repo
+      {{- if contains "/helm-apps" .path.path }}
+        path: "test-appset/helm-chart/simple-chart/"
         helm:
+          releaseName: {{trimSuffix ".yaml" .path.filename}}
           valueFiles:
-            - {{ .path.filename }} # Path to the values.yaml within the monorepo
-        {{- else if contains "/manifests/" .path.path }}
+            - $values/{{.path.path}}/{{.path.filename}}
+      - repoURL: https://github.com/llegolas/gitops.git
+        targetRevision: HEAD
+        ref: values
+      {{- else if contains "/manifests/" .path.path }}
         # Plain YAML or Kustomize application
         path: {{.path.path}} # The directory containing manifests
         directory:
           recurse: true
         kustomize: {} # Explicitly enable Kustomize detection
-        {{- end }}
+      {{- end }}

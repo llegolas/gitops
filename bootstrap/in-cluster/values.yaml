@@ -10,10 +10,10 @@ global:
 configs:
   params:
     server.insecure: false
+    applicationsetcontroller.enable.new.git.file.globbing: true
   cm:
     exec.enabled: true
     kustomize.buildOptions: --enable-helm
-    applicationsetcontroller.enable.new.git.file.globbing: true
 
 server:
   certificate:
