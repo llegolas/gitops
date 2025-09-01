@@ -3,6 +3,10 @@ kind: Application
 metadata:
   name: argocd
 spec:
+  project: argocd
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
   source:
     helm:
       values: |
@@ -42,7 +46,7 @@ spec:
             issuer:
               group: cert-manager.io
               kind: ClusterIssuer
-              name: selfsigned-issuer
+              name: ca-issuer
           config:
             repositories: |
               - type: git
