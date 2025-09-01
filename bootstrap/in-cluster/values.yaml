@@ -21,7 +21,7 @@ server:
     issuer:
       group: "cert-manager.io"
       kind: "ClusterIssuer"
-      name: "selfsigned-issuer"
+      name: "ca-issuer"
 
   ingress:
     enabled: true
