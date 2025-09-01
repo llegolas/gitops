@@ -42,7 +42,7 @@ spec:
             issuer:
               group: cert-manager.io
               kind: ClusterIssuer
-              name: ca-issuer
+              name: selfsigned-issuer
           config:
             repositories: |
               - type: git
