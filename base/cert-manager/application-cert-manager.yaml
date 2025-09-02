@@ -6,9 +6,9 @@ metadata:
 spec:
   project: argocd
   source:
-    chart: jetstack/cert-manager
+    chart: cert-manager
     repoURL: https://charts.jetstack.io
-    targetRevision: 1.18.2
+    targetRevision: v1.18.2
     helm:
       releaseName: cert-manager
       values: |
