@@ -6,7 +6,7 @@ metadata:
 spec:
   project: argocd
   source:
-    chart: jetstack/trust-manager
+    chart: trust-manager
     repoURL: https://charts.jetstack.io
     targetRevision: v0.19.0
     helm:
