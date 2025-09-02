@@ -1,5 +1,6 @@
 #!/bin/bash
 DIRNAME=$(dirname $0)
+HELM_VERSION=8.3.3
 
 if [ -z ${ARGOCD_NS+x} ];then
   ARGOCD_NS='argocd'
@@ -30,6 +31,7 @@ if [ "$ans" == "y" ]; then
   kubectl kustomize https://github.com/argoproj/argo-cd.git/manifests/crds/ | kubectl apply -f -
   helm upgrade --install argocd argo/argo-cd \
     --namespace=$ARGOCD_NS \
+    --version $HELM_VERSION
     --create-namespace \
     -f $VALUES_FILE
 else
