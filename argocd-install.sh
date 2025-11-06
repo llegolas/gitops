@@ -31,7 +31,7 @@ if [ "$ans" == "y" ]; then
   kubectl kustomize https://github.com/argoproj/argo-cd.git/manifests/crds/ | kubectl apply -f -
   helm upgrade --install argocd argo/argo-cd \
     --namespace=$ARGOCD_NS \
-    --version $HELM_VERSION
+    --version $HELM_VERSION \
     --create-namespace \
     -f $VALUES_FILE
 else
