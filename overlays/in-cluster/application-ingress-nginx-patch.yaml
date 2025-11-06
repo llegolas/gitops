@@ -9,8 +9,6 @@ spec:
         defaultBackend:
           enabled: true
         controller:
-          updateStrategy:
-            type: Recreate
           extraArgs:
             enable-ssl-passthrough: true
           hostPort:
