@@ -19,30 +19,3 @@ spec:
             external:
               enabled: false
           watchIngressWithoutClass: true
-        crds:
-          install: false
-        dex:
-          enabled: false
-        global:
-          domain: argocd.minikube.home
-        configs:
-        params:
-          server.insecure: false
-          applicationsetcontroller.enable.new.git.file.globbing: true
-        cm:
-          exec.enabled: true
-          kustomize.buildOptions: --enable-helm
-        server:
-          certificate:
-            enabled: true
-            issuer:
-              group: "cert-manager.io"
-              kind: "ClusterIssuer"
-              name: "ca-issuer"
-        ingress:
-          enabled: true
-          tls: true
-          annotations:
-            nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-            nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-            nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
