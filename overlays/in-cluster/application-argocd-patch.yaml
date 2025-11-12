@@ -14,6 +14,8 @@ spec:
           cm:
             exec.enabled: true
             kustomize.buildOptions: --enable-helm
+            application.resourceTrackingMethod: annotation+label
+            application.instanceLabelKey: argocd.argoproj.io/instance
           params:
             server.insecure: false
         crds:
