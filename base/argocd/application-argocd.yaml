@@ -5,14 +5,18 @@ metadata:
   namespace: argocd
 spec:
   project: argocd
-  source:
-    chart: argo-cd
+  sources:
+  - chart: argo-cd
     repoURL: https://argoproj.github.io/argo-helm
-    targetRevision: 9.1.0
+    targetRevision: 9.4.2
     helm:
       releaseName: argocd
-      values: |
-        XXX
+      valueFiles:
+      - $values/bootstrap/in-cluster/values.yaml
+  - repoURL: https://github.com/llegolas/gitops
+    targetRevision: main
+    ref: values
+
   destination:
     namespace: argocd
     server: https://kubernetes.default.svc
@@ -21,6 +25,6 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+#      - CreateNamespace=true
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true

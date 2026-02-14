@@ -3,8 +3,8 @@
 set -euo pipefail
 
 DIRNAME=$(dirname $0)
-HELM_VERSION=5.51.0
-CRD_VERSION=v2.10.5
+HELM_VERSION=9.4.2
+CRD_VERSION=v3.3.0
 
 if [ -z ${ARGOCD_NS+x} ];then
   ARGOCD_NS='argocd'
@@ -30,7 +30,7 @@ echo "INFO: Using values file $VALUES_FILE"
 
 echo "INFO: Argocd will be installed in $ARGOCD_NS namespace with values file $VALUES_FILE"
 if [ "${1-}" == "-y" ] || [ "${1-}" == "--yes" ]; then
-  kubectl apply -k "https://github.com/argoproj/argo-cd/manifests/crds?ref=${CRD_VERSION}"
+  kubectl apply --server-side -k "https://github.com/argoproj/argo-cd/manifests/crds?ref=${CRD_VERSION}"
   helm upgrade --install argocd argo/argo-cd \
     --namespace=$ARGOCD_NS \
     --version $HELM_VERSION \

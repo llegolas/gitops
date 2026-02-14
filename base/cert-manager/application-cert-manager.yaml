@@ -8,11 +8,16 @@ spec:
   source:
     chart: cert-manager
     repoURL: https://charts.jetstack.io
-    targetRevision: v1.19.1
+    targetRevision: v1.19.3
     helm:
       releaseName: cert-manager
       values: |
-        installCRDs: true
+        config:
+          enableGatewayAPI: true
+          featureGates:
+            ExperimentalGatewayAPISupport: true
+        crds:
+          enabled: true
   destination:
     namespace: cert-manager
     server: https://kubernetes.default.svc

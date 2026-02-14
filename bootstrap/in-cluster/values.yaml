@@ -9,36 +9,55 @@ global:
 
 configs:
   params:
-    server.insecure: false
+    server.insecure: true
     applicationsetcontroller.enable.new.git.file.globbing: true
   cm:
     exec.enabled: true
     kustomize.buildOptions: --enable-helm
+  repositories:
+    gitops:
+      name: gitops
+      type: git
+      url: https://github.com/llegolas/gitops.git
+    argo-helm:
+      name: argo-helm
+      type: helm
+      url: https://argoproj.github.io/argo-helm
 
 server:
-  certificate:
+  httproute:
     enabled: true
-    issuer:
-      group: "cert-manager.io"
-      kind: "ClusterIssuer"
-      name: "ca-issuer"
-
-  ingress:
+    annotations: {}
+    parentRefs:
+    - group: gateway.networking.k8s.io	
+      kind: Gateway
+      namespace: envoy-gateway-system
+      name: minikube-envoy
+      sectionName: https-terminated
+    hostnames:
+    - argocd.minikube.home
+    rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+  grpcroute:
     enabled: true
-    tls: true
-    annotations:
-      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
-
-  configEnabled: true
-  config:
-    repositories: |
-      - type: git
-        url: https://github.com/llegolas/gitops.git
-      - name: argo-helm
-        type: helm
-        url: https://argoproj.github.io/argo-helm
+    annotattions: {}
+    parentRefs:
+    - group: gateway.networking.k8s.io	
+      kind: Gateway
+      namespace: envoy-gateway-system
+      name: minikube-envoy
+      sectionName: https-terminated
+    hostnames:
+    - argocd.minikube.home
+    rules:
+    - matches:
+      - headers:
+        - name: Content-Type
+          type: RegularExpression
+          value: "^application/grpc.*$"      
 
 extraObjects:
   - apiVersion: argoproj.io/v1alpha1

@@ -5,20 +5,5 @@ resources:
   - ../../base/trust-manager
   - ../../base/cert-manager-ca
   - ../../base/argocd
-  - ../../base/nfs-client-provisioner
-  - ../../base/ingress-nginx
 
-patches:
-  - path: application-nfs-client-provisioner-patch.yaml
-    target: 
-      kind: Application
-      name: nfs-client-provisioner
-  - path: application-argocd-patch.yaml
-    target:
-      kind: Application
-      name: argocd
-  - path: application-ingress-nginx-patch.yaml
-    target:
-      kind: Application
-      name: ingress-nginx
-
+patches: []
