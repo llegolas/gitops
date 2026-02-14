@@ -57,7 +57,7 @@ server:
       - headers:
         - name: Content-Type
           type: RegularExpression
-          value: "^application/grpc.*$"      
+          value: "^application/grpc.*$" 
 
 extraObjects:
   - apiVersion: argoproj.io/v1alpha1
