@@ -43,7 +43,7 @@ server:
           value: /
   grpcroute:
     enabled: true
-    annotattions: {}
+    annotations: {}
     parentRefs:
     - group: gateway.networking.k8s.io	
       kind: Gateway

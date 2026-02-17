@@ -13,7 +13,7 @@ spec:
       releaseName: argocd
       valueFiles:
       - $values/bootstrap/in-cluster/values.yaml
-  - repoURL: https://github.com/llegolas/gitops
+  - repoURL: https://github.com/llegolas/gitops.git
     targetRevision: main
     ref: values
 

@@ -10,7 +10,7 @@ spec:
     server: "https://kubernetes.default.svc"
   sources:
     - path:  base/cert-manager-ca/manifests
-      repoURL: https://github.com/llegolas/gitops
+      repoURL: https://github.com/llegolas/gitops.git
       targetRevision: main
   syncPolicy:
     automated:
