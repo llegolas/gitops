@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: home-lab
+  namespace: argocd
+spec:
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  description: Home Lab Project
+  destinations:
+    - namespace: '*'
+      server: '*'
+  orphanedResources:
+    warn: false
+  sourceRepos:
+    - '*'
