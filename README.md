@@ -1,51 +1,53 @@
 # GitOps - Home Lab
 
-Kustomize-based GitOps repository for managing a minikube home lab cluster.
+GitOps repository for managing a minikube home lab cluster.
 
 ## Structure
 
 ```
 .
-├── base/<app>/                    # Upstream install manifests (cluster-agnostic)
-├── overlays/<cluster>/<app>/      # Cluster-specific kustomize + patches
-├── apps/<cluster>/                # ArgoCD Application CRs (one per app)
+├── overlays/<cluster>/<app>/      # Cluster-specific kustomize, patches, install manifests
+├── apps/<cluster>/                # ArgoCD Application CRs (one per app, with sync waves)
 ├── app-of-apps/                   # ArgoCD app-of-apps (one per cluster)
-└── bootstrap/<cluster>            # Symlink to overlays/<cluster>
+└── bootstrap/<cluster>/           # Minimal kustomization to install ArgoCD
 ```
 
 ### Components
 
-| App              | Version | Namespace            | Managed by       |
-|------------------|---------|----------------------|------------------|
-| Envoy Gateway    | v1.7.0  | envoy-gateway-system | bootstrap + argo |
-| ArgoCD           | v3.3.0  | argocd               | bootstrap + argo |
-| cert-manager     | v1.19.3 | cert-manager         | argo (helm)      |
-| cert-manager CA  |         | cert-manager         | argo (kustomize) |
-| k8s-gateway DNS  | v3.4.1  | kube-ingress-dns     | argo (helm)      |
+| App                  | Version | Namespace            | Managed by       | Sync wave |
+|----------------------|---------|----------------------|------------------|-----------|
+| ArgoCD               | v3.3.0  | argocd               | bootstrap + argo | -         |
+| Envoy Gateway        | v1.7.0  | envoy-gateway-system | argo (helm)      | 0         |
+| cert-manager         | v1.19.3 | cert-manager         | argo (helm)      | 0         |
+| Envoy Gateway config |         | envoy-gateway-system | argo (kustomize) | 1         |
+| cert-manager CA      |         | cert-manager         | argo (kustomize) | 1         |
+| k8s-gateway DNS      | v3.4.1  | kube-ingress-dns     | argo (helm)      | 1         |
+| ArgoCD (self-manage) |         | argocd               | argo (kustomize) | 1         |
 
 ## Bootstrap
 
 ```bash
-# 1. Bootstrap envoy-gateway and argocd
-kubectl apply --server-side -k bootstrap/in-cluster --load-restrictor LoadRestrictionsNone
+# 1. Bootstrap ArgoCD only
+kubectl apply --server-side -k bootstrap/in-cluster
 
-# 2. Hand control to ArgoCD (deploys all remaining apps and takes over bootstrap apps)
+# 2. Hand control to ArgoCD
 kubectl apply -f app-of-apps/in-cluster.yaml
 ```
 
-cert-manager and k8s-gateway DNS are not part of the bootstrap — ArgoCD
-installs them via Helm charts and handles retries automatically.
+ArgoCD then installs everything else via sync waves:
+- **Wave 0**: Envoy Gateway + cert-manager (Helm charts — installs CRDs + controllers)
+- **Wave 1**: Gateway/routes config, CA issuers, DNS, ArgoCD self-management
 
 ## Adding a new cluster
 
-1. Create `overlays/<cluster-name>/` with per-app kustomizations
-2. Create `apps/<cluster-name>/` with ArgoCD Application CRs
-3. Create `app-of-apps/<cluster-name>.yaml`
-4. Create symlink: `ln -s ../overlays/<cluster-name> bootstrap/<cluster-name>`
+1. Create `bootstrap/<cluster-name>/` with ArgoCD kustomization
+2. Create `overlays/<cluster-name>/` with per-app kustomizations
+3. Create `apps/<cluster-name>/` with ArgoCD Application CRs
+4. Create `app-of-apps/<cluster-name>.yaml`
 
 ## Teardown
 
 ```bash
 kubectl delete -f app-of-apps/in-cluster.yaml
-kubectl delete -k bootstrap/in-cluster --load-restrictor LoadRestrictionsNone
+kubectl delete -k bootstrap/in-cluster
 ```
