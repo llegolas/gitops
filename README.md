@@ -16,12 +16,12 @@ GitOps repository for managing a minikube home lab cluster.
 
 | App                  | Version | Namespace            | Managed by       | Sync wave |
 |----------------------|---------|----------------------|------------------|-----------|
-| ArgoCD               | v3.3.0  | argocd               | bootstrap + argo | -         |
+| ArgoCD               | v3.3.2  | argocd               | bootstrap + argo | -         |
 | Envoy Gateway        | v1.7.0  | envoy-gateway-system | argo (helm)      | 0         |
-| cert-manager         | v1.19.3 | cert-manager         | argo (helm)      | 0         |
+| cert-manager         | v1.19.4 | cert-manager         | argo (helm)      | 0         |
 | Envoy Gateway config |         | envoy-gateway-system | argo (kustomize) | 1         |
 | cert-manager CA      |         | cert-manager         | argo (kustomize) | 1         |
-| k8s-gateway DNS      | v3.4.1  | kube-ingress-dns     | argo (helm)      | 1         |
+| k8s-gateway DNS      | v3.4.1  | kube-ingress-dns     | argo (helm)      | 2         |
 | ArgoCD (self-manage) |         | argocd               | argo (kustomize) | 1         |
 
 ## Bootstrap
@@ -36,7 +36,8 @@ kubectl apply -f app-of-apps/in-cluster.yaml
 
 ArgoCD then installs everything else via sync waves:
 - **Wave 0**: Envoy Gateway + cert-manager (Helm charts — installs CRDs + controllers)
-- **Wave 1**: Gateway/routes config, CA issuers, DNS, ArgoCD self-management
+- **Wave 1**: Gateway/routes config, CA issuers, ArgoCD self-management
+- **Wave 2**: k8s-gateway DNS (needs Gateway API CRDs registered at startup)
 
 ## Adding a new cluster
 
@@ -48,6 +49,15 @@ ArgoCD then installs everything else via sync waves:
 ## Teardown
 
 ```bash
+# 1. Remove app-of-apps (stops recreating child apps)
 kubectl delete -f app-of-apps/in-cluster.yaml
+
+# 2. Delete all child apps (ArgoCD prunes their deployed resources)
+kubectl delete app --all -n argocd
+
+# 3. Remove ArgoCD itself
 kubectl delete -k bootstrap/in-cluster
+
+# 4. Clean up leftover namespaces
+kubectl delete ns cert-manager envoy-gateway-system kube-ingress-dns
 ```
