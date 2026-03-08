@@ -29,12 +29,3 @@ patches:
       data:
         server.insecure: "true"
         applicationsetcontroller.enable.new.git.file.globbing: "true"
-  - target:
-      kind: Deployment
-      name: argocd-server
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/args
-        value:
-          - /usr/local/bin/argocd-server
-          - --insecure
