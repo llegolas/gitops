@@ -9,7 +9,7 @@ spec:
   project: home-lab
   source:
     chart: gateway-helm
-    repoURL: registry-1.docker.io/envoyproxy
+    repoURL: oci://docker.io/envoyproxy
     targetRevision: v1.7.0
     helm:
       releaseName: envoy-gateway
