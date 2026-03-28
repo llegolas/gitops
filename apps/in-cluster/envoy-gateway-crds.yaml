@@ -1,22 +1,23 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: envoy-gateway
+  name: envoy-gateway-crds
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-wave: "5"
 spec:
   project: home-lab
   source:
-    chart: gateway-helm
+    chart: gateway-crds-helm
     repoURL: docker.io/envoyproxy
     targetRevision: 1.7.1
     helm:
-      skipCrds: true
       parameters:
-      - name: "config.envoyGateway.extensionApis.enableBackend"
+      - name: "crds.gatewayAPI.enabled"
         value: "true"
-      releaseName: envoy-gateway
+      - name: "crds.envoyGateway.enabled"
+        value: "true"
+      releaseName: envoy-gateway-crds
   destination:
     namespace: envoy-gateway-system
     server: https://kubernetes.default.svc
