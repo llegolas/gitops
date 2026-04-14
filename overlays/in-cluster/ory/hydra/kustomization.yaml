@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../base/ory/hydra
+patches:
+  - target:
+      kind: Application
+      name: ory-hydra
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/hydra/config/urls/self/issuer
+        value: "https://ory.minikube.home/"
+      - op: replace
+        path: /spec/source/helm/valuesObject/hydra/config/urls/consent
+        value: "https://ory.minikube.home/consent"
+      - op: replace
+        path: /spec/source/helm/valuesObject/hydra/config/urls/login
+        value: "https://ory.minikube.home/login"
+      - op: replace
+        path: /spec/source/helm/valuesObject/hydra/config/urls/logout
+        value: "https://ory.minikube.home/logout"

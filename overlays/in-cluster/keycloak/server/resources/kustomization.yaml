@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../../base/keycloak/server/resources
+patches:
+  - target:
+      kind: HTTPRoute
+      name: keycloak
+    patch: |-
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: keycloak
+      spec:
+        parentRefs:
+          - group: gateway.networking.k8s.io
+            kind: Gateway
+            namespace: envoy-gateway-system
+            name: minikube-envoy
+            sectionName: https-terminated
+        hostnames:
+          - keycloak.minikube.home
+  - target:
+      kind: Keycloak
+      name: keycloak
+    patch: |-
+      - op: replace
+        path: /spec/hostname/hostname
+        value: keycloak.minikube.home

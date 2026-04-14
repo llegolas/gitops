@@ -1,0 +1,41 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: ory-hydra
+  namespace: ory
+spec:
+  name: ory_hydra
+  owner: ory
+  cluster:
+    name: ory-db
+  encoding: UTF8
+  localeCollate: C
+  localeCType: C
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: ory-kratos
+  namespace: ory
+spec:
+  name: ory_kratos
+  owner: ory
+  cluster:
+    name: ory-db
+  encoding: UTF8
+  localeCollate: C
+  localeCType: C
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: ory-keto
+  namespace: ory
+spec:
+  name: ory_keto
+  owner: ory
+  cluster:
+    name: ory-db
+  encoding: UTF8
+  localeCollate: C
+  localeCType: C

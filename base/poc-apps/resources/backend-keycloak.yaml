@@ -1,0 +1,10 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: keycloak-external
+  namespace: envoy-keycloak-poc
+spec:
+  endpoints:
+    - fqdn:
+        hostname: keycloak.CLUSTER_DOMAIN
+        port: 443

@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/dns-gateway
+patches:
+  - target:
+      kind: Application
+      name: dns-gateway
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/domain
+        value: minikube.home

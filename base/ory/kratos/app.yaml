@@ -1,0 +1,70 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ory-kratos
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: home-lab
+  source:
+    chart: kratos
+    repoURL: https://k8s.ory.sh/helm/charts
+    targetRevision: 0.61.1
+    helm:
+      releaseName: ory-kratos
+      valuesObject:
+        deployment:
+          extraEnv:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ory-db-app
+                  key: username
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: ory-db-app
+                  key: password
+            - name: DSN
+              value: "postgres://$(DB_USER):$(DB_PASS)@ory-db-rw:5432/ory_kratos?sslmode=disable"
+        kratos:
+          automigration:
+            enabled: true
+          config:
+            serve:
+              public:
+                base_url: https://ory.CLUSTER_DOMAIN/.ory/kratos/public/
+              admin:
+                base_url: http://ory-kratos-admin.ory.svc:80/
+            selfservice:
+              default_browser_return_url: https://ory.CLUSTER_DOMAIN/
+              flows:
+                login:
+                  ui_url: https://ory.CLUSTER_DOMAIN/login
+                registration:
+                  ui_url: https://ory.CLUSTER_DOMAIN/registration
+                settings:
+                  ui_url: https://ory.CLUSTER_DOMAIN/settings
+                recovery:
+                  ui_url: https://ory.CLUSTER_DOMAIN/recovery
+                verification:
+                  ui_url: https://ory.CLUSTER_DOMAIN/verification
+                error:
+                  ui_url: https://ory.CLUSTER_DOMAIN/error
+            identity:
+              default_schema_id: default
+              schemas:
+                - id: default
+                  url: base64://ewogICIkaWQiOiAiaHR0cHM6Ly9zY2hlbWFzLm9yeS5zaC9wcmVzZXRzL2tyYXRvcy9pZGVudGl0eS5lbWFpbC5zY2hlbWEuanNvbiIsCiAgIiRzY2hlbWEiOiAiaHR0cDovL2pzb24tc2NoZW1hLm9yZy9kcmFmdC0wNy9zY2hlbWEjIiwKICAidGl0bGUiOiAiUGVyc29uIiwKICAidHlwZSI6ICJvYmplY3QiLAogICJwcm9wZXJ0aWVzIjogewogICAgInRyYWl0cyI6IHsKICAgICAgInR5cGUiOiAib2JqZWN0IiwKICAgICAgInByb3BlcnRpZXMiOiB7CiAgICAgICAgImVtYWlsIjogewogICAgICAgICAgInR5cGUiOiAic3RyaW5nIiwKICAgICAgICAgICJmb3JtYXQiOiAiZW1haWwiLAogICAgICAgICAgInRpdGxlIjogIkUtTWFpbCIsCiAgICAgICAgICAib3J5LnNoL2tyYXRvcyI6IHsKICAgICAgICAgICAgImNyZWRlbnRpYWxzIjogewogICAgICAgICAgICAgICJwYXNzd29yZCI6IHsKICAgICAgICAgICAgICAgICJpZGVudGlmaWVyIjogdHJ1ZQogICAgICAgICAgICAgIH0KICAgICAgICAgICAgfSwKICAgICAgICAgICAgInJlY292ZXJ5IjogewogICAgICAgICAgICAgICJ2aWEiOiAiZW1haWwiCiAgICAgICAgICAgIH0sCiAgICAgICAgICAgICJ2ZXJpZmljYXRpb24iOiB7CiAgICAgICAgICAgICAgInZpYSI6ICJlbWFpbCIKICAgICAgICAgICAgfQogICAgICAgICAgfQogICAgICAgIH0KICAgICAgfSwKICAgICAgInJlcXVpcmVkIjogWyJlbWFpbCJdCiAgICB9CiAgfQp9
+  destination:
+    namespace: ory
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

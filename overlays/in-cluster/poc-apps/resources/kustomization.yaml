@@ -1,0 +1,129 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../base/poc-apps/resources
+patches:
+  # --- HTTPRoutes: patch gateway name and hostname ---
+  - target:
+      kind: HTTPRoute
+    patch: |-
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: unused
+      spec:
+        parentRefs:
+          - group: gateway.networking.k8s.io
+            kind: Gateway
+            namespace: envoy-gateway-system
+            name: minikube-envoy
+            sectionName: https-terminated
+        hostnames:
+          - poc.minikube.home
+  # --- SecurityPolicies: patch OIDC issuer, redirect URLs, cookie domain, JWT ---
+  - target:
+      kind: SecurityPolicy
+      name: oidc-app
+    patch: |-
+      - op: replace
+        path: /spec/oidc/provider/issuer
+        value: https://keycloak.minikube.home/realms/poc
+      - op: replace
+        path: /spec/oidc/redirectURL
+        value: https://poc.minikube.home/oauth2/callback-app
+      - op: replace
+        path: /spec/oidc/cookieDomain
+        value: minikube.home
+      - op: replace
+        path: /spec/jwt/providers/0/issuer
+        value: https://keycloak.minikube.home/realms/poc
+      - op: replace
+        path: /spec/jwt/providers/0/remoteJWKS/uri
+        value: https://keycloak.minikube.home/realms/poc/protocol/openid-connect/certs
+  - target:
+      kind: SecurityPolicy
+      name: oidc-admin
+    patch: |-
+      - op: replace
+        path: /spec/oidc/provider/issuer
+        value: https://keycloak.minikube.home/realms/poc
+      - op: replace
+        path: /spec/oidc/redirectURL
+        value: https://poc.minikube.home/oauth2/callback-admin
+      - op: replace
+        path: /spec/oidc/cookieDomain
+        value: minikube.home
+      - op: replace
+        path: /spec/jwt/providers/0/issuer
+        value: https://keycloak.minikube.home/realms/poc
+      - op: replace
+        path: /spec/jwt/providers/0/remoteJWKS/uri
+        value: https://keycloak.minikube.home/realms/poc/protocol/openid-connect/certs
+  - target:
+      kind: SecurityPolicy
+      name: oidc-api
+    patch: |-
+      - op: replace
+        path: /spec/oidc/provider/issuer
+        value: https://keycloak.minikube.home/realms/poc
+      - op: replace
+        path: /spec/oidc/redirectURL
+        value: https://poc.minikube.home/oauth2/callback-api
+      - op: replace
+        path: /spec/oidc/cookieDomain
+        value: minikube.home
+      - op: replace
+        path: /spec/jwt/providers/0/issuer
+        value: https://keycloak.minikube.home/realms/poc
+      - op: replace
+        path: /spec/jwt/providers/0/remoteJWKS/uri
+        value: https://keycloak.minikube.home/realms/poc/protocol/openid-connect/certs
+  - target:
+      kind: SecurityPolicy
+      name: oidc-dashboard
+    patch: |-
+      - op: replace
+        path: /spec/oidc/provider/issuer
+        value: https://keycloak.minikube.home/realms/poc
+      - op: replace
+        path: /spec/oidc/redirectURL
+        value: https://poc.minikube.home/oauth2/callback-dashboard
+      - op: replace
+        path: /spec/oidc/cookieDomain
+        value: minikube.home
+      - op: replace
+        path: /spec/jwt/providers/0/issuer
+        value: https://keycloak.minikube.home/realms/poc
+      - op: replace
+        path: /spec/jwt/providers/0/remoteJWKS/uri
+        value: https://keycloak.minikube.home/realms/poc/protocol/openid-connect/certs
+  # --- Backend: patch keycloak FQDN ---
+  - target:
+      kind: Backend
+      name: keycloak-external
+    patch: |-
+      - op: replace
+        path: /spec/endpoints/0/fqdn/hostname
+        value: keycloak.minikube.home
+  # --- BackendTLSPolicy: patch CA ref and hostname ---
+  - target:
+      kind: BackendTLSPolicy
+      name: keycloak-external-tls
+    patch: |-
+      - op: replace
+        path: /spec/validation/caCertificateRefs/0/name
+        value: minikube-home-ca
+      - op: replace
+        path: /spec/validation/hostname
+        value: keycloak.minikube.home
+  # --- Bundle: patch CA secret name ---
+  - target:
+      kind: Bundle
+      name: CLUSTER_DOMAIN-ca
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: minikube-home-ca
+      - op: replace
+        path: /spec/sources/0/secret/name
+        value: minikube-home-ca

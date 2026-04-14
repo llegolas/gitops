@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../base/ory/kratos-ui
+patches:
+  - target:
+      kind: Application
+      name: ory-kratos-ui
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/kratosBrowserUrl
+        value: "https://ory.minikube.home/.ory/kratos/public/"

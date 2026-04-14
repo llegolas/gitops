@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ory-keto
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: home-lab
+  source:
+    chart: keto
+    repoURL: https://k8s.ory.sh/helm/charts
+    targetRevision: 0.61.1
+    helm:
+      releaseName: ory-keto
+      valuesObject:
+        deployment:
+          extraEnv:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ory-db-app
+                  key: username
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: ory-db-app
+                  key: password
+            - name: DSN
+              value: "postgres://$(DB_USER):$(DB_PASS)@ory-db-rw:5432/ory_keto?sslmode=disable"
+        keto:
+          automigration:
+            enabled: true
+          config:
+            namespaces:
+              - id: 0
+                name: groups
+              - id: 1
+                name: resources
+            serve:
+              read:
+                host: 0.0.0.0
+                port: 4466
+              write:
+                host: 0.0.0.0
+                port: 4467
+  destination:
+    namespace: ory
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ory-hydra
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: home-lab
+  source:
+    chart: hydra
+    repoURL: https://k8s.ory.sh/helm/charts
+    targetRevision: 0.61.1
+    helm:
+      releaseName: ory-hydra
+      valuesObject:
+        deployment:
+          extraEnv:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ory-db-app
+                  key: username
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: ory-db-app
+                  key: password
+            - name: DSN
+              value: "postgres://$(DB_USER):$(DB_PASS)@ory-db-rw:5432/ory_hydra?sslmode=disable"
+        hydra:
+          automigration:
+            enabled: true
+          config:
+            secrets:
+              system:
+                - CHANGE_ME_IN_PRODUCTION
+            urls:
+              self:
+                issuer: https://ory.CLUSTER_DOMAIN/
+              consent: https://ory.CLUSTER_DOMAIN/consent
+              login: https://ory.CLUSTER_DOMAIN/login
+              logout: https://ory.CLUSTER_DOMAIN/logout
+  destination:
+    namespace: ory
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

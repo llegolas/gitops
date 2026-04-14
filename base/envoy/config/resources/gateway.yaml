@@ -1,0 +1,29 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: GATEWAY_NAME
+  namespace: envoy-gateway-system
+  annotations:
+    cert-manager.io/cluster-issuer: ca-issuer
+spec:
+  gatewayClassName: CLUSTER_NAME-class
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-terminated
+      hostname: "*.CLUSTER_DOMAIN"
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: wildcard-CLUSTER_DOMAIN
+      allowedRoutes:
+        namespaces:
+          from: All

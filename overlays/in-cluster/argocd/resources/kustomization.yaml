@@ -1,0 +1,64 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - ../../../../base/argocd/resources
+patches:
+  - target:
+      kind: HTTPRoute
+      name: argocd-server
+    patch: |-
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: argocd-server
+      spec:
+        parentRefs:
+          - group: gateway.networking.k8s.io
+            kind: Gateway
+            namespace: envoy-gateway-system
+            name: minikube-envoy
+            sectionName: https-terminated
+        hostnames:
+          - argocd.minikube.home
+  - target:
+      kind: GRPCRoute
+      name: argocd-server-grpc
+    patch: |-
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: GRPCRoute
+      metadata:
+        name: argocd-server-grpc
+      spec:
+        parentRefs:
+          - group: gateway.networking.k8s.io
+            kind: Gateway
+            namespace: envoy-gateway-system
+            name: minikube-envoy
+            sectionName: https-terminated
+        hostnames:
+          - argocd.minikube.home
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-cm
+      data:
+        exec.enabled: "true"
+        kustomize.buildOptions: "--enable-helm"
+        application.resourceTrackingMethod: annotation+label
+        application.instanceLabelKey: argocd.argoproj.io/instance
+  - target:
+      kind: ConfigMap
+      name: argocd-cmd-params-cm
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-cmd-params-cm
+      data:
+        server.insecure: "true"
+        applicationsetcontroller.enable.new.git.file.globbing: "true"

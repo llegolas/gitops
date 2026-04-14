@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cnpg-cluster.yaml
+  - keycloak-database.yaml
+  - keycloak-cr.yaml
+  - keycloak-httproute.yaml

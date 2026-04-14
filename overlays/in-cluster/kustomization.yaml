@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cert-manager
+  - cnpg
+  - keycloak
+  - envoy
+  - dns-gateway
+  - argocd
+  - ory
+  - poc-apps

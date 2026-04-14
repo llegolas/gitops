@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: CLUSTER_DOMAIN-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: CLUSTER_DOMAIN
+  secretName: CLUSTER_DOMAIN-ca
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

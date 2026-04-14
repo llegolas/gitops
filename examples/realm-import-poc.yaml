@@ -1,0 +1,115 @@
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: poc
+  namespace: keycloak
+spec:
+  keycloakCRName: keycloak
+  realm:
+    realm: poc
+    enabled: true
+    sslRequired: external
+    registrationAllowed: false
+    loginWithEmailAllowed: true
+    duplicateEmailsAllowed: false
+    resetPasswordAllowed: false
+    editUsernameAllowed: false
+    bruteForceProtected: true
+    accessTokenLifespan: 300
+    ssoSessionIdleTimeout: 1800
+    ssoSessionMaxLifespan: 36000
+    groups:
+      - name: admins
+        path: /admins
+      - name: developers
+        path: /developers
+      - name: users
+        path: /users
+    users:
+      - username: admin-user
+        enabled: true
+        emailVerified: true
+        email: admin-user@poc.minikube.home
+        firstName: Admin
+        lastName: User
+        credentials:
+          - type: password
+            value: "***"
+            temporary: false
+        groups:
+          - /admins
+          - /users
+      - username: dev-user
+        enabled: true
+        emailVerified: true
+        email: dev-user@poc.minikube.home
+        firstName: Dev
+        lastName: User
+        credentials:
+          - type: password
+            value: "***"
+            temporary: false
+        groups:
+          - /developers
+          - /users
+      - username: basic-user
+        enabled: true
+        emailVerified: true
+        email: basic-user@poc.minikube.home
+        firstName: Basic
+        lastName: User
+        credentials:
+          - type: password
+            value: "***"
+            temporary: false
+        groups:
+          - /users
+    clientScopes:
+      - name: groups
+        description: Group membership claim
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: groups
+            protocol: openid-connect
+            protocolMapper: oidc-group-membership-mapper
+            consentRequired: false
+            config:
+              claim.name: groups
+              full.path: "false"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+    clients:
+      - clientId: envoy-gateway-poc
+        name: Envoy Gateway PoC
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        secret: "***"
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        implicitFlowEnabled: false
+        redirectUris:
+          - https://poc.minikube.home/oauth2/callback-app
+          - https://poc.minikube.home/oauth2/callback-admin
+          - https://poc.minikube.home/oauth2/callback-api
+          - https://poc.minikube.home/oauth2/callback-dashboard
+        webOrigins:
+          - https://poc.minikube.home
+        attributes:
+          post.logout.redirect.uris: https://poc.minikube.home/*
+        defaultClientScopes:
+          - web-origins
+          - profile
+          - roles
+          - email
+          - groups
+        optionalClientScopes:
+          - address
+          - phone
+          - offline_access
+          - microprofile-jwt

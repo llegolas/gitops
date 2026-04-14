@@ -1,0 +1,76 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ory-oathkeeper
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: home-lab
+  source:
+    chart: oathkeeper
+    repoURL: https://k8s.ory.sh/helm/charts
+    targetRevision: 0.61.1
+    helm:
+      releaseName: ory-oathkeeper
+      valuesObject:
+        oathkeeper:
+          config:
+            access_rules:
+              matching_strategy: regexp
+            authenticators:
+              jwt:
+                enabled: true
+                config:
+                  jwks_urls:
+                    - https://ory.CLUSTER_DOMAIN/.well-known/jwks.json
+              noop:
+                enabled: true
+              anonymous:
+                enabled: true
+            authorizers:
+              allow:
+                enabled: true
+              deny:
+                enabled: true
+              keto_engine_acp_ory:
+                enabled: true
+                config:
+                  base_url: http://ory-keto-read.ory.svc:80
+                  required_action: unknown
+                  required_resource: unknown
+            mutators:
+              noop:
+                enabled: true
+              header:
+                enabled: true
+                config:
+                  headers:
+                    X-User: "{{ print .Subject }}"
+          managedAccessRules: true
+          accessRules: |
+            [
+              {
+                "id": "health-check",
+                "match": {
+                  "url": "<http|https>://ory.CLUSTER_DOMAIN/health",
+                  "methods": ["GET"]
+                },
+                "authenticators": [{ "handler": "anonymous" }],
+                "authorizer": { "handler": "allow" },
+                "mutators": [{ "handler": "noop" }]
+              }
+            ]
+        oathkeeper-maester:
+          enabled: true
+  destination:
+    namespace: ory
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

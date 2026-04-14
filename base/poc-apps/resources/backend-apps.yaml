@@ -1,0 +1,194 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-service
+  namespace: envoy-keycloak-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-service
+  template:
+    metadata:
+      labels:
+        app: admin-service
+    spec:
+      containers:
+        - name: echo
+          image: ealen/echo-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: ECHO__ENVIRONMENT__NAME
+              value: ADMIN-BACKEND
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-service
+  namespace: envoy-keycloak-poc
+spec:
+  selector:
+    app: admin-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service
+  namespace: envoy-keycloak-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-service
+  template:
+    metadata:
+      labels:
+        app: api-service
+    spec:
+      containers:
+        - name: echo
+          image: ealen/echo-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: ECHO__ENVIRONMENT__NAME
+              value: API-BACKEND
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: envoy-keycloak-poc
+spec:
+  selector:
+    app: api-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-service
+  namespace: envoy-keycloak-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard-service
+  template:
+    metadata:
+      labels:
+        app: dashboard-service
+    spec:
+      containers:
+        - name: echo
+          image: ealen/echo-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: ECHO__ENVIRONMENT__NAME
+              value: DASHBOARD-BACKEND
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-service
+  namespace: envoy-keycloak-poc
+spec:
+  selector:
+    app: dashboard-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-service
+  namespace: envoy-keycloak-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-service
+  template:
+    metadata:
+      labels:
+        app: app-service
+    spec:
+      containers:
+        - name: echo
+          image: ealen/echo-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: ECHO__ENVIRONMENT__NAME
+              value: APP-BACKEND
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+  namespace: envoy-keycloak-poc
+spec:
+  selector:
+    app: app-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: public-service
+  namespace: envoy-keycloak-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: public-service
+  template:
+    metadata:
+      labels:
+        app: public-service
+    spec:
+      containers:
+        - name: echo
+          image: ealen/echo-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: ECHO__ENVIRONMENT__NAME
+              value: PUBLIC-BACKEND
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-service
+  namespace: envoy-keycloak-poc
+spec:
+  selector:
+    app: public-service
+  ports:
+    - port: 8080
+      targetPort: 8080

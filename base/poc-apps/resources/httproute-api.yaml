@@ -1,0 +1,38 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: poc-api-route
+  namespace: envoy-keycloak-poc
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: envoy-gateway-system
+      name: GATEWAY_NAME
+      sectionName: https-terminated
+  hostnames:
+    - poc.CLUSTER_DOMAIN
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: api-service
+          port: 8080
+          weight: 1
+    - matches:
+        - path:
+            type: Exact
+            value: /oauth2/callback-api
+        - path:
+            type: Exact
+            value: /oauth2/logout-api
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: api-service
+          port: 8080
+          weight: 1

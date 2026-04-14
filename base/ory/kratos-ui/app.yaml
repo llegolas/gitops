@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ory-kratos-ui
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: home-lab
+  source:
+    chart: kratos-selfservice-ui-node
+    repoURL: https://k8s.ory.sh/helm/charts
+    targetRevision: 0.61.1
+    helm:
+      releaseName: ory-kratos-ui
+      valuesObject:
+        kratosPublicUrl: http://ory-kratos-public.ory.svc:80
+        kratosBrowserUrl: https://ory.CLUSTER_DOMAIN/.ory/kratos/public/
+        config:
+          csrfCookieName: __HOST-ory-kratos-ui-csrf
+        secret:
+          enabled: true
+  destination:
+    namespace: ory
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: poc-apps
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: home-lab
+  source:
+    repoURL: https://github.com/llegolas/gitops.git
+    targetRevision: main
+    path: overlays/in-cluster/poc-apps/resources
+  destination:
+    namespace: envoy-keycloak-poc
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

@@ -1,0 +1,66 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: oidc-admin
+  namespace: envoy-keycloak-poc
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: poc-admin-route
+  oidc:
+    provider:
+      issuer: https://keycloak.CLUSTER_DOMAIN/realms/poc
+      backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: keycloak-external
+          port: 443
+          weight: 1
+    clientID: envoy-gateway-poc
+    clientSecret:
+      name: keycloak-oidc-client-secret
+    redirectURL: https://poc.CLUSTER_DOMAIN/oauth2/callback-admin
+    logoutPath: /oauth2/logout-admin
+    scopes:
+      - openid
+      - groups
+    defaultTokenTTL: 3600s
+    forwardAccessToken: true
+    cookieDomain: "CLUSTER_DOMAIN"
+    cookieNames:
+      accessToken: "keycloak-access-token"  
+  jwt:
+    providers:
+      - name: keycloak
+        issuer: https://keycloak.CLUSTER_DOMAIN/realms/poc
+        remoteJWKS:
+          uri: https://keycloak.CLUSTER_DOMAIN/realms/poc/protocol/openid-connect/certs
+          cacheDuration: 300s
+          backendRefs:
+            - group: gateway.envoyproxy.io
+              kind: Backend
+              name: keycloak-external
+              port: 443
+              weight: 1
+        claimToHeaders:
+          - claim: preferred_username
+            header: x-user
+          - claim: email
+            header: x-email
+        extractFrom:
+          cookies:
+            - "keycloak-access-token"
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: admins-only
+        action: Allow
+        principal:
+          jwt:
+            provider: keycloak
+            claims:
+              - name: groups
+                valueType: StringArray
+                values: 
+                  - "admins"
