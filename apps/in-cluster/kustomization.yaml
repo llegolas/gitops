@@ -8,3 +8,5 @@ resources:
   - cert-manager-ca.yaml
   - dns-gateway.yaml
   - argocd.yaml
+  - cnpg.yaml
+  - keycloak-operator.yaml
