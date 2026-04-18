@@ -59,7 +59,7 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | App                  | Version | Namespace            | Managed by       | Sync wave |
 |----------------------|---------|----------------------|------------------|-----------|
 | ArgoCD               | v3.3.2  | argocd               | bootstrap + argo | -         |
-| Envoy Gateway        | v1.7.1  | envoy-gateway-system | argo (helm)      | 0         |
+| Envoy Gateway        | v1.7.2  | envoy-gateway-system | argo (helm)      | 0         |
 | cert-manager         | v1.19.4 | cert-manager         | argo (helm)      | 0         |
 | Envoy Gateway config |         | envoy-gateway-system | argo (kustomize) | 1         |
 | cert-manager CA      |         | cert-manager         | argo (kustomize) | 1         |
