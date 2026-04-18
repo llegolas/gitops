@@ -10,7 +10,7 @@ spec:
   source:
     chart: k8s-gateway
     repoURL: https://k8s-gateway.github.io/k8s_gateway/
-    targetRevision: 3.4.1
+    targetRevision: 3.6.1
     helm:
       releaseName: dns-gateway
       valuesObject:
