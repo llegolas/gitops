@@ -12,6 +12,10 @@ spec:
     repoURL: docker.io/envoyproxy
     targetRevision: 1.8.1
     helm:
+      crds:
+        gatewayAPI:
+          safeUpgradePolicy:
+            enabled: false
       skipCrds: true
       releaseName: envoy-gateway
       valuesObject:
