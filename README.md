@@ -66,7 +66,7 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | trust-manager        | v0.24.0 | cert-manager         | argo (helm)      | 0         |
 | k8s-gateway DNS      | v3.7.2  | kube-ingress-dns     | argo (helm)      | 2         |
 | ArgoCD (self-manage) |         | argocd               | argo (kustomize) | 1         |
-| CloudNativePG        | v0.28.0 | cnpg-system          | argo (helm)      | 0         |
+| CloudNativePG        | v0.29.0 | cnpg-system          | argo (helm)      | 0         |
 | Keycloak operator    | v26.6.0 | keycloak             | argo (kustomize) | 1         |
 | Keycloak             | v26.6.0 | keycloak             | argo (kustomize) | 2         |
 | Envoy+Keycloak PoC   |         | envoy-keycloak-poc   | argo (kustomize) | 4         |
