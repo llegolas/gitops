@@ -60,11 +60,11 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 |----------------------|---------|----------------------|------------------|-----------|
 | ArgoCD               | v3.4.2  | argocd               | bootstrap + argo | -         |
 | Envoy Gateway        | v1.8.3  | envoy-gateway-system | argo (helm)      | 0         |
-| cert-manager         | v1.20.2 | cert-manager         | argo (helm)      | 0         |
+| cert-manager         | v1.21.0 | cert-manager         | argo (helm)      | 0         |
 | Envoy Gateway config |         | envoy-gateway-system | argo (kustomize) | 1         |
 | cert-manager CA      |         | cert-manager         | argo (kustomize) | 1         |
-| trust-manager        | v0.22.0 | cert-manager         | argo (helm)      | 0         |
-| k8s-gateway DNS      | v3.6.1  | kube-ingress-dns     | argo (helm)      | 2         |
+| trust-manager        | v0.24.0 | cert-manager         | argo (helm)      | 0         |
+| k8s-gateway DNS      | v3.7.2  | kube-ingress-dns     | argo (helm)      | 2         |
 | ArgoCD (self-manage) |         | argocd               | argo (kustomize) | 1         |
 | CloudNativePG        | v0.28.0 | cnpg-system          | argo (helm)      | 0         |
 | Keycloak operator    | v26.6.0 | keycloak             | argo (kustomize) | 1         |
