@@ -37,7 +37,8 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   └── livekit/
 │       ├── redis/                     # Redis (LiveKit server state)
 │       ├── server/                    # LiveKit Helm chart, wired to STUNner TURN
-│       └── route/                     # HTTPRoute (signaling) + STUNner UDPRoute (media)
+│       ├── route/                     # HTTPRoute (signaling) + STUNner UDPRoute (media)
+│       └── client/                    # LiveKit React example (test UI)
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
     ├── kustomization.yaml             # Lists all app groups
@@ -48,7 +49,7 @@ It is tested to be working on Fedora Linux but your mileage can vary.
     ├── envoy/                         # Aggregates crds, gateway, config
     ├── keycloak/                      # Aggregates operator, server
     ├── stunner/                       # Aggregates operator, config
-    └── livekit/                       # Aggregates redis, server, route
+    └── livekit/                       # Aggregates redis, server, route, client
 ```
 
 Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-apps reference their `base/` counterpart and add cluster-specific patches (hostnames, gateway refs, etc.).
@@ -73,6 +74,7 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | LiveKit Redis        |         | livekit               | argo (kustomize) | 15        |
 | LiveKit server       | v1.9.0  | livekit               | argo (helm)      | 16        |
 | LiveKit routes       |         | livekit               | argo (kustomize) | 17        |
+| LiveKit client       |         | livekit               | argo (kustomize) | 17        |
 
 ## Bootstrap
 
@@ -93,7 +95,7 @@ ArgoCD then installs everything else via sync waves:
 - **Wave 10**: STUNner control plane (Helm chart — operator + auth service)
 - **Wave 15**: STUNner TURN Gateway config, LiveKit's Redis
 - **Wave 16**: LiveKit server (Helm chart, wired to STUNner as its TURN/STUN server)
-- **Wave 17**: LiveKit HTTPRoute (signaling) + STUNner UDPRoute (media relay to LiveKit)
+- **Wave 17**: LiveKit HTTPRoute (signaling) + STUNner UDPRoute (media relay to LiveKit) + LiveKit React test client
 
 ## Adding a new cluster
 

@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: livekit-client
+  namespace: livekit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: livekit-client
+  template:
+    metadata:
+      labels:
+        app: livekit-client
+    spec:
+      containers:
+        - name: lk-react
+          image: davidkornel/lk-react:latest
+          command: ["yarn"]
+          args: ["start"]
+          ports:
+            - containerPort: 3000

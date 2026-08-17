@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: livekit-client
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "17"
+spec:
+  project: home-lab
+  source:
+    repoURL: https://github.com/llegolas/gitops.git
+    targetRevision: main
+    path: overlays/in-cluster/livekit/client/resources
+  destination:
+    namespace: livekit
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
