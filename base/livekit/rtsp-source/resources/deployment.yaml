@@ -21,7 +21,7 @@ spec:
         # server. Independently testable, e.g.
         # `ffplay rtsp://<pod-ip>:8554/stream`.
         - name: mediamtx
-          image: bluenviron/mediamtx:v1.20.0
+          image: bluenviron/mediamtx:1.20.0
           ports:
             - containerPort: 8554
               protocol: TCP
