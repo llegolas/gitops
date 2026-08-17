@@ -1,0 +1,12 @@
+apiVersion: stunner.l7mp.io/v1
+kind: UDPRoute
+metadata:
+  name: livekit-media
+  namespace: livekit
+spec:
+  parentRefs:
+    - name: udp-gateway
+      namespace: stunner
+  rules:
+    - backendRefs:
+        - name: livekit-server

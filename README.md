@@ -31,7 +31,13 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   ├── keycloak/
 │   │   ├── operator/                  # Keycloak operator CRDs + deployment
 │   │   └── server/                    # Keycloak CR + DB + route
-│   └── stunner/                       # STUNner Helm chart (control plane)
+│   ├── stunner/
+│   │   ├── operator/                  # STUNner Helm chart (control plane)
+│   │   └── config/                    # GatewayConfig + GatewayClass + Gateway (TURN)
+│   └── livekit/
+│       ├── redis/                     # Redis (LiveKit server state)
+│       ├── server/                    # LiveKit Helm chart, wired to STUNner TURN
+│       └── route/                     # HTTPRoute (signaling) + STUNner UDPRoute (media)
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
     ├── kustomization.yaml             # Lists all app groups
@@ -41,7 +47,8 @@ It is tested to be working on Fedora Linux but your mileage can vary.
     ├── dns-gateway/
     ├── envoy/                         # Aggregates crds, gateway, config
     ├── keycloak/                      # Aggregates operator, server
-    └── stunner/
+    ├── stunner/                       # Aggregates operator, config
+    └── livekit/                       # Aggregates redis, server, route
 ```
 
 Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-apps reference their `base/` counterpart and add cluster-specific patches (hostnames, gateway refs, etc.).
@@ -62,6 +69,10 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | Keycloak operator    | v26.7.0 | keycloak             | argo (kustomize) | 1         |
 | Keycloak             | v26.7.0 | keycloak             | argo (kustomize) | 2         |
 | STUNner              | v1.2.1  | stunner-system        | argo (helm)      | 10        |
+| STUNner config       |         | stunner               | argo (kustomize) | 15        |
+| LiveKit Redis        |         | livekit               | argo (kustomize) | 15        |
+| LiveKit server       | v1.9.0  | livekit               | argo (helm)      | 16        |
+| LiveKit routes       |         | livekit               | argo (kustomize) | 17        |
 
 ## Bootstrap
 
@@ -79,6 +90,10 @@ ArgoCD then installs everything else via sync waves:
 - **Wave 1**: Gateway/routes config, CA issuers, ArgoCD self-management
 - **Wave 2**: k8s-gateway DNS (needs Gateway API CRDs registered at startup), Keycloak CR + CNPG Cluster
 - **Wave 4**: Envoy+Keycloak OIDC PoC (backends, HTTPRoutes, SecurityPolicy)
+- **Wave 10**: STUNner control plane (Helm chart — operator + auth service)
+- **Wave 15**: STUNner TURN Gateway config, LiveKit's Redis
+- **Wave 16**: LiveKit server (Helm chart, wired to STUNner as its TURN/STUN server)
+- **Wave 17**: LiveKit HTTPRoute (signaling) + STUNner UDPRoute (media relay to LiveKit)
 
 ## Adding a new cluster
 

@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../base/livekit/server
+patches:
+  - target:
+      kind: Application
+      name: livekit-server
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/livekit/rtc/stun_servers/0
+        value: "192.168.39.135:3478"
+      - op: replace
+        path: /spec/source/helm/valuesObject/livekit/rtc/turn_servers/0/host
+        value: "192.168.39.135"
