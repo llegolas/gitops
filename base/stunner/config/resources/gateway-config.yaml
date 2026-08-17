@@ -5,6 +5,7 @@ metadata:
   namespace: stunner
 spec:
   realm: stunner.l7mp.io
+  logLevel: "all:DEBUG"
   authRef:
     name: stunner-auth-secret
     namespace: stunner
