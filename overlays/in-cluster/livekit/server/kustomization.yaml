@@ -9,7 +9,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/source/helm/valuesObject/livekit/rtc/stun_servers/0
-        value: "192.168.39.135:3478"
+        value: "192.168.39.135:30478"
       - op: replace
         path: /spec/source/helm/valuesObject/livekit/rtc/turn_servers/0/host
         value: "192.168.39.135"

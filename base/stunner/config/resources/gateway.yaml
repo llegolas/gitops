@@ -5,7 +5,7 @@ metadata:
   namespace: stunner
   annotations:
     stunner.l7mp.io/service-type: NodePort
-    stunner.l7mp.io/nodeport: '{"udp-listener":3478}'
+    stunner.l7mp.io/nodeport: '{"udp-listener":30478}'
 spec:
   gatewayClassName: stunner-gatewayclass
   addresses:
@@ -13,7 +13,7 @@ spec:
       value: STUNNER_HOST
   listeners:
     - name: udp-listener
-      port: 3478
+      port: 30478
       protocol: TURN-UDP
       allowedRoutes:
         namespaces:

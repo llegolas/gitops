@@ -27,10 +27,10 @@ spec:
             port_range_end: 60000
             use_external_ip: false
             stun_servers:
-              - "TURN_HOST:3478"
+              - "TURN_HOST:30478"
             turn_servers:
               - host: TURN_HOST
-                port: 3478
+                port: 30478
                 protocol: udp
                 username: user-1
                 credential: pass-1
