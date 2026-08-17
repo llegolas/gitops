@@ -9,4 +9,6 @@ spec:
       namespace: stunner
   rules:
     - backendRefs:
-        - name: livekit-server
+        - group: ""
+          kind: Service
+          name: livekit-server
