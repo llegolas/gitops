@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stunner
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: home-lab
+  source:
+    chart: stunner
+    repoURL: https://l7mp.io/stunner
+    targetRevision: 1.2.1
+    helm:
+      releaseName: stunner
+      valuesObject:
+        standardCrds:
+          enabled: false
+  destination:
+    namespace: stunner-system
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

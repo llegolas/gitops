@@ -6,4 +6,5 @@ resources:
   - keycloak
   - envoy
   - dns-gateway
+  - stunner
   - argocd

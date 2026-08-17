@@ -28,9 +28,10 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   │   ├── crds/                      # Envoy Gateway CRDs Helm chart
 │   │   ├── gateway/                   # Envoy Gateway Helm chart
 │   │   └── config/                    # EnvoyProxy + GatewayClass + Gateway
-│   └── keycloak/
-│       ├── operator/                  # Keycloak operator CRDs + deployment
-│       └── server/                    # Keycloak CR + DB + route
+│   ├── keycloak/
+│   │   ├── operator/                  # Keycloak operator CRDs + deployment
+│   │   └── server/                    # Keycloak CR + DB + route
+│   └── stunner/                       # STUNner Helm chart (control plane)
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
     ├── kustomization.yaml             # Lists all app groups
@@ -39,7 +40,8 @@ It is tested to be working on Fedora Linux but your mileage can vary.
     ├── cnpg/                          # Aggregates operator, clusters
     ├── dns-gateway/
     ├── envoy/                         # Aggregates crds, gateway, config
-    └── keycloak/                      # Aggregates operator, server
+    ├── keycloak/                      # Aggregates operator, server
+    └── stunner/
 ```
 
 Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-apps reference their `base/` counterpart and add cluster-specific patches (hostnames, gateway refs, etc.).
@@ -59,6 +61,7 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | CloudNativePG        | v0.29.0 | cnpg-system          | argo (helm)      | 0         |
 | Keycloak operator    | v26.7.0 | keycloak             | argo (kustomize) | 1         |
 | Keycloak             | v26.7.0 | keycloak             | argo (kustomize) | 2         |
+| STUNner              | v1.2.1  | stunner-system        | argo (helm)      | 10        |
 
 ## Bootstrap
 
