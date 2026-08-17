@@ -5,7 +5,9 @@ metadata:
   namespace: livekit
 spec:
   parentRefs:
-    - name: udp-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: udp-gateway
       namespace: stunner
   rules:
     - backendRefs:
