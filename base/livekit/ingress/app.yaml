@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: livekit-ingress
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "17"
+spec:
+  project: home-lab
+  source:
+    chart: ingress
+    repoURL: https://helm.livekit.io
+    targetRevision: 1.2.2
+    helm:
+      releaseName: livekit-ingress
+      valuesObject:
+        podHostNetwork: false
+        ingress:
+          api_key: access_token
+          api_secret: f14df9af7fc9d6a2b9ccad082c96e8cd67fd9699
+          ws_url: ws://livekit-server:80
+          serviceType: ClusterIP
+          redis:
+            address: livekit-redis:6379
+  destination:
+    namespace: livekit
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

@@ -36,6 +36,8 @@ spec:
                 credential: pass-1
           turn:
             enabled: false
+          ingress:
+            rtmp_base_url: rtmp://livekit-ingress:1935/x
         storeKeysInSecret:
           enabled: true
           keys:

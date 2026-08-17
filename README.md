@@ -13,7 +13,8 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 ├── examples/                          # Scripts and manifests for manual steps
 │   ├── 99-minikube.sh                 # NetworkManager dispatch script for DNS
 │   ├── realm-import-poc.yaml          # Keycloak realm import CR
-│   └── create-oidc-secret.sh          # OIDC client secret creation
+│   ├── create-oidc-secret.sh          # OIDC client secret creation
+│   └── create-livekit-ingress.sh      # LiveKit RTMP Ingress registration
 ├── base/
 │   ├── argocd/                        # Upstream manifests + routes
 │   ├── cert-manager/
@@ -38,7 +39,9 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │       ├── redis/                     # Redis (LiveKit server state)
 │       ├── server/                    # LiveKit Helm chart, wired to STUNner TURN
 │       ├── route/                     # HTTPRoute (signaling) + STUNner UDPRoute (media)
-│       └── client/                    # LiveKit React example (test UI)
+│       ├── client/                    # LiveKit React example (test UI)
+│       ├── ingress/                   # LiveKit Ingress Helm chart (RTMP/WHIP -> room)
+│       └── rtsp-source/               # Looping test pattern over RTSP + RTMP relay into ingress
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
     ├── kustomization.yaml             # Lists all app groups
@@ -49,7 +52,7 @@ It is tested to be working on Fedora Linux but your mileage can vary.
     ├── envoy/                         # Aggregates crds, gateway, config
     ├── keycloak/                      # Aggregates operator, server
     ├── stunner/                       # Aggregates operator, config
-    └── livekit/                       # Aggregates redis, server, route, client
+    └── livekit/                       # Aggregates redis, server, route, client, ingress, rtsp-source
 ```
 
 Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-apps reference their `base/` counterpart and add cluster-specific patches (hostnames, gateway refs, etc.).
@@ -75,6 +78,8 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | LiveKit server       | v1.9.0  | livekit               | argo (helm)      | 16        |
 | LiveKit routes       |         | livekit               | argo (kustomize) | 17        |
 | LiveKit client       |         | livekit               | argo (kustomize) | 17        |
+| LiveKit Ingress      | v1.2.2  | livekit               | argo (helm)      | 17        |
+| LiveKit RTSP source  |         | livekit               | argo (kustomize) | 18        |
 
 ## Bootstrap
 
@@ -95,7 +100,8 @@ ArgoCD then installs everything else via sync waves:
 - **Wave 10**: STUNner control plane (Helm chart — operator + auth service)
 - **Wave 15**: STUNner TURN Gateway config, LiveKit's Redis
 - **Wave 16**: LiveKit server (Helm chart, wired to STUNner as its TURN/STUN server)
-- **Wave 17**: LiveKit HTTPRoute (signaling) + STUNner UDPRoute (media relay to LiveKit) + LiveKit React test client
+- **Wave 17**: LiveKit HTTPRoute (signaling) + STUNner UDPRoute (media relay to LiveKit) + LiveKit React test client + LiveKit Ingress (RTMP/WHIP)
+- **Wave 18**: RTSP test source (looping pattern) + RTMP relay into LiveKit Ingress
 
 ## Adding a new cluster
 
@@ -133,4 +139,12 @@ See [examples/realm-import-poc.yaml](examples/realm-import-poc.yaml) for the ful
 - The `KeycloakRealmImport` CR only imports on first creation — if the realm already exists, delete it (`kcadm.sh delete realms/poc` inside `keycloak-0`) or drop the CNPG DB before re-applying.
 
 Apply with: `kubectl apply -f examples/realm-import-poc.yaml`
+
+### LiveKit RTSP source (manual ingress registration)
+
+LiveKit Ingress only accepts RTMP or WHIP push (or HTTP-file/HLS pull) — it cannot pull RTSP directly. So `livekit-rtsp-source` serves its looping test pattern over RTSP (independently testable, e.g. `ffplay rtsp://<pod-ip>:8554/stream`) and relays it into LiveKit via RTMP. The RTMP push URL is generated per-Ingress by LiveKit's `CreateIngress` API (there's no way to pin a stream key), so registering it is a **manual** step kept out of GitOps, same reasoning as the Keycloak realm import above.
+
+Run [examples/create-livekit-ingress.sh](examples/create-livekit-ingress.sh) once the `livekit` Applications are synced. It signs an admin JWT, calls `CreateIngress` for room `room` / identity `camera-1`, and stores the returned RTMP URL in the `livekit-ingress-stream-key` Secret, which the `rtmp-relay` container in `livekit-rtsp-source` picks up automatically (it polls for the file, no pod restart needed). Re-running the script registers a new Ingress each time — LiveKit has no upsert-by-name, so this isn't idempotent, but is harmless for a lab.
+
+Watch the room in the [LiveKit client](#components) at `https://livekit-client.minikube.home` (or any WHIP/room viewer) with LiveKit URL `wss://livekit.minikube.home` to see the looping test pattern.
 
