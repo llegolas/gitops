@@ -26,7 +26,7 @@ payload = {
     "exp": now + 300,
     "iss": api_key,
     "nbf": now,
-    "video": {"roomCreate": True},
+    "video": {"ingressAdmin": True},
 }
 signing_input = b64url(json.dumps(header, separators=(',', ':')).encode()) + "." + \
                 b64url(json.dumps(payload, separators=(',', ':')).encode())
@@ -35,12 +35,19 @@ print(signing_input + "." + b64url(sig))
 EOF
 )
 
-RESPONSE=$(curl -sf -X POST "$LIVEKIT_URL/twirp/livekit.Ingress/CreateIngress" \
+RESPONSE=$(curl -sk -w '\n%{http_code}' -X POST "$LIVEKIT_URL/twirp/livekit.Ingress/CreateIngress" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"input_type\":\"RTMP_INPUT\",\"name\":\"rtsp-loop\",\"room_name\":\"$ROOM\",\"participant_identity\":\"$IDENTITY\",\"participant_name\":\"Camera 1\"}")
+HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+BODY=$(echo "$RESPONSE" | sed '$d')
 
-URL=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["url"])')
+if [ "$HTTP_CODE" != "200" ]; then
+  echo "CreateIngress failed (HTTP $HTTP_CODE): $BODY" >&2
+  exit 1
+fi
+
+URL=$(echo "$BODY" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["url"].rstrip("/") + "/" + d["stream_key"])')
 
 kubectl -n livekit create secret generic livekit-ingress-stream-key \
   --from-literal=url="$URL" \

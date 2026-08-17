@@ -14,10 +14,19 @@ spec:
         app: livekit-rtsp-source
     spec:
       containers:
-        # Serves a looping synthetic test pattern over RTSP. Standalone and
-        # independently testable (e.g. `ffplay rtsp://<pod-ip>:8554/stream`),
-        # decoupled from whatever consumes it.
-        - name: rtsp-server
+        # RTSP hub: ffmpeg has no server-side "serve for read" RTSP support
+        # (only demuxer-side listen, for receiving a push), so a real RTSP
+        # server is needed here. Default config only -- plain RTSP relay,
+        # no WebRTC/RTMP/HLS involved; LiveKit remains the only WebRTC-facing
+        # server. Independently testable, e.g.
+        # `ffplay rtsp://<pod-ip>:8554/stream`.
+        - name: mediamtx
+          image: bluenviron/mediamtx:v1.20.0
+          ports:
+            - containerPort: 8554
+              protocol: TCP
+        # Publishes a looping synthetic test pattern into mediamtx over RTSP.
+        - name: rtsp-publisher
           image: jrottenberg/ffmpeg:8.1.2-ubuntu2404-amd64
           command: ["/bin/bash", "-c"]
           args:
@@ -27,12 +36,9 @@ spec:
                   -f lavfi -i "sine=frequency=1000" \
                   -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p \
                   -c:a aac \
-                  -f rtsp -rtsp_flags listen rtsp://0.0.0.0:8554/stream
+                  -rtsp_transport tcp -f rtsp rtsp://localhost:8554/stream
                 sleep 2
               done
-          ports:
-            - containerPort: 8554
-              protocol: TCP
         # Relays the local RTSP stream into LiveKit via the RTMP ingress,
         # since LiveKit Ingress does not accept RTSP directly (only
         # RTMP/WHIP push, or HTTP-file/HLS pull). The push URL is created

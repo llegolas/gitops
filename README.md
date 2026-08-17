@@ -41,7 +41,7 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │       ├── route/                     # HTTPRoute (signaling) + STUNner UDPRoute (media)
 │       ├── client/                    # LiveKit React example (test UI)
 │       ├── ingress/                   # LiveKit Ingress Helm chart (RTMP/WHIP -> room)
-│       └── rtsp-source/               # Looping test pattern over RTSP + RTMP relay into ingress
+│       └── rtsp-source/               # MediaMTX RTSP hub + ffmpeg publisher (loop) + RTMP relay into ingress
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
     ├── kustomization.yaml             # Lists all app groups
@@ -142,7 +142,7 @@ Apply with: `kubectl apply -f examples/realm-import-poc.yaml`
 
 ### LiveKit RTSP source (manual ingress registration)
 
-LiveKit Ingress only accepts RTMP or WHIP push (or HTTP-file/HLS pull) — it cannot pull RTSP directly. So `livekit-rtsp-source` serves its looping test pattern over RTSP (independently testable, e.g. `ffplay rtsp://<pod-ip>:8554/stream`) and relays it into LiveKit via RTMP. The RTMP push URL is generated per-Ingress by LiveKit's `CreateIngress` API (there's no way to pin a stream key), so registering it is a **manual** step kept out of GitOps, same reasoning as the Keycloak realm import above.
+LiveKit Ingress only accepts RTMP or WHIP push (or HTTP-file/HLS pull) — it cannot pull RTSP directly. `livekit-rtsp-source` is three containers in one pod: `mediamtx` (a plain RTSP server — ffmpeg has no server-side "serve for read" RTSP support, only demuxer-side listen for receiving a push, so a real RTSP server is needed here), `rtsp-publisher` (ffmpeg pushing a looping synthetic test pattern into it), and `rtmp-relay` (ffmpeg pulling that RTSP stream back out and pushing it into LiveKit via RTMP). The RTSP leg is independently testable, e.g. `ffplay rtsp://<pod-ip>:8554/stream`. The RTMP push URL is generated per-Ingress by LiveKit's `CreateIngress` API (there's no way to pin a stream key), so registering it is a **manual** step kept out of GitOps, same reasoning as the Keycloak realm import above.
 
 Run [examples/create-livekit-ingress.sh](examples/create-livekit-ingress.sh) once the `livekit` Applications are synced. It signs an admin JWT, calls `CreateIngress` for room `room` / identity `camera-1`, and stores the returned RTMP URL in the `livekit-ingress-stream-key` Secret, which the `rtmp-relay` container in `livekit-rtsp-source` picks up automatically (it polls for the file, no pod restart needed). Re-running the script registers a new Ingress each time — LiveKit has no upsert-by-name, so this isn't idempotent, but is harmless for a lab.
 
