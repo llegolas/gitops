@@ -24,14 +24,30 @@ spec:
             type: PathPrefix
             value: /
       filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /hls/
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: mediamtx-hls-prefix
       backendRefs:
         - group: ""
           kind: Service
           name: mediamtx-replica
           port: 8888
           weight: 1
+---
+# /<cabinet>/<camera>/... -> /hls/<cabinet>/<camera>/...
+# (Gateway API's ReplacePrefixMatch "/" -> "/hls/" drops the slash in Envoy
+# Gateway and yields /hlscabinet1/..., hence an explicit regex rewrite.)
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: mediamtx-hls-prefix
+  namespace: mediamtx
+spec:
+  urlRewrite:
+    path:
+      type: ReplaceRegexMatch
+      replaceRegexMatch:
+        pattern: "^/"
+        substitution: /hls/
