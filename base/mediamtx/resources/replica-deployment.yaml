@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
         - name: mediamtx
-          image: bluenviron/mediamtx:1.20.0
+          # -ffmpeg variant: WebRTC paths run ffmpeg to re-encode audio to Opus.
+          image: bluenviron/mediamtx:1.20.0-ffmpeg
           args: ["/config/mediamtx.yml"]
           env:
             - name: MTX_WEBRTCICESERVERS2_0_URL

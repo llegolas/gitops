@@ -22,7 +22,11 @@ authHTTPExclude:
 api: yes
 apiAddress: :9997
 
-rtsp: no
+# Loopback only: the runOnDemand ffmpeg of a WebRTC camera publishes its
+# Opus-audio copy back into the path here. Not reachable from outside the pod.
+rtsp: yes
+rtspAddress: 127.0.0.1:8554
+rtspTransports: [tcp]
 rtmp: no
 srt: no
 moq: no
@@ -58,8 +62,9 @@ webrtcIPsFromInterfaces: yes
 webrtcICEServers2:
   - clientOnly: yes
 
-# Applies to every path, including the ones added through the API, so the
-# config service only has to set `source` (the camera's RTSP URL).
+# Applies to every path, including the ones added through the API, so for an
+# HLS camera the config service only has to set `source` (the camera's RTSP
+# URL). WebRTC cameras are set up differently, see paths below.
 pathDefaults:
   sourceOnDemand: yes
   rtspTransport: tcp
@@ -71,8 +76,23 @@ pathDefaults:
 # In production the config service adds them through the API
 # (POST /v3/config/paths/add/<name>). PoC: one camera of each kind, pulled
 # from the camera simulator (base/camera-sim).
+#
+# WebRTC has no AAC and cameras rarely send Opus, and MediaMTX does not
+# transcode. So a WebRTC camera is not a `source`: the path starts ffmpeg on
+# demand (first viewer; stopped runOnDemandCloseAfter=10s after the last),
+# which pulls the camera, copies the video, re-encodes the audio to Opus
+# (no-op cost if there is no audio track) and publishes the result back into
+# the same path over loopback RTSP. `sourceOnDemand: no` overrides
+# pathDefaults, which MediaMTX rejects on a publisher path. HLS cameras keep a
+# plain `source`: HLS carries AAC.
 paths:
   cabinet1/camera1:
-    source: rtsp://camera-sim.mediamtx.svc.cluster.local:8554/bbb
+    sourceOnDemand: no
+    runOnDemand: >-
+      ffmpeg -hide_banner -loglevel warning
+      -rtsp_transport tcp -i rtsp://camera-sim.mediamtx.svc.cluster.local:8554/bbb
+      -map 0:v -map 0:a? -c:v copy -c:a libopus -b:a 64k -ar 48000
+      -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:$RTSP_PORT/$MTX_PATH
+    runOnDemandRestart: yes
   hls/cabinet1/camera2:
     source: rtsp://camera-sim.mediamtx.svc.cluster.local:8554/testsrc

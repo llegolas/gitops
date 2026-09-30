@@ -10,7 +10,10 @@ POST /auth    MediaMTX `authMethod: http` hook (cluster-internal only):
               requests carry hlsCDNSecret and never reach the hook), control
               API calls need the
               MEDIAMTX_API_USER/PASSWORD Basic-auth credentials (used by the
-              config service), everything else is denied.
+              config service), RTSP publishing from loopback is allowed (the
+              replica's own runOnDemand ffmpeg, which re-encodes camera audio
+              to Opus; RTSP listens on 127.0.0.1 only), everything else is
+              denied.
 GET  /healthz
 
 Tokens are HS256 JWTs signed with SIGNING_KEY. Nothing is stored, so any
@@ -188,6 +191,13 @@ class Handler(BaseHTTPRequestHandler):
             reason = "no token" if not token else "invalid/expired token" if not claims else "wrong path"
             log.info("deny webrtc read path=%s ip=%s: %s", path, ip, reason)
             return self.reply(401, {"error": reason})
+
+        if action == "publish" and protocol == "rtsp" and ip in ("127.0.0.1", "::1"):
+            # The replica's runOnDemand ffmpeg publishing a camera with its audio
+            # re-encoded to Opus. RTSP is bound to 127.0.0.1, so only processes
+            # inside the replica pod can get here.
+            log.debug("allow local publish path=%s", path)
+            return self.reply(204)
 
         if action == "api":
             # Both compared (no short-circuit) to keep timing independent of which is wrong.
