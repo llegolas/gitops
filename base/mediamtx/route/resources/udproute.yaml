@@ -1,0 +1,18 @@
+# Lets STUNner relay browser media to the replicas' WebRTC UDP port.
+apiVersion: stunner.l7mp.io/v1
+kind: UDPRoute
+metadata:
+  name: mediamtx-media
+  namespace: mediamtx
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: udp-gateway
+      namespace: stunner
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: mediamtx-replica
+          port: 8189

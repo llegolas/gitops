@@ -13,8 +13,7 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 ├── examples/                          # Scripts and manifests for manual steps
 │   ├── 99-minikube.sh                 # NetworkManager dispatch script for DNS
 │   ├── realm-import-poc.yaml          # Keycloak realm import CR
-│   ├── create-oidc-secret.sh          # OIDC client secret creation
-│   └── create-livekit-ingress.sh      # LiveKit RTMP Ingress registration
+│   └── create-oidc-secret.sh          # OIDC client secret creation
 ├── base/
 │   ├── argocd/                        # Upstream manifests + routes
 │   ├── cert-manager/
@@ -35,13 +34,11 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   ├── stunner/
 │   │   ├── operator/                  # STUNner Helm chart (control plane)
 │   │   └── config/                    # GatewayConfig + GatewayClass + Gateway (TURN)
-│   └── livekit/
-│       ├── redis/                     # Redis (LiveKit server state)
-│       ├── server/                    # LiveKit Helm chart, wired to STUNner TURN
-│       ├── route/                     # HTTPRoute (signaling) + STUNner UDPRoute (media)
-│       ├── client/                    # LiveKit React example (test UI)
-│       ├── ingress/                   # LiveKit Ingress Helm chart (RTMP/WHIP -> room)
-│       └── rtsp-source/               # MediaMTX RTSP hub + ffmpeg publisher (loop) + RTMP relay into ingress
+│   └── mediamtx/
+│       ├── origin/                    # Single MediaMTX origin (RTSP ingest, cluster-internal)
+│       ├── replicas/                  # MediaMTX read replicas (HLS + WebRTC), HPA 2-3
+│       ├── source/                    # ffmpeg publishers: looped Big Buck Bunny + test pattern
+│       └── route/                     # Sticky HTTPRoutes (HLS, WHEP) + STUNner UDPRoute (media)
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
     ├── kustomization.yaml             # Lists all app groups
@@ -52,7 +49,7 @@ It is tested to be working on Fedora Linux but your mileage can vary.
     ├── envoy/                         # Aggregates crds, gateway, config
     ├── keycloak/                      # Aggregates operator, server
     ├── stunner/                       # Aggregates operator, config
-    └── livekit/                       # Aggregates redis, server, route, client, ingress, rtsp-source
+    └── mediamtx/                      # Aggregates origin, replicas, source, route
 ```
 
 Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-apps reference their `base/` counterpart and add cluster-specific patches (hostnames, gateway refs, etc.).
@@ -74,12 +71,10 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | Keycloak             | v26.7.0 | keycloak             | argo (kustomize) | 2         |
 | STUNner              | v1.2.1  | stunner-system        | argo (helm)      | 10        |
 | STUNner config       |         | stunner               | argo (kustomize) | 15        |
-| LiveKit Redis        |         | livekit               | argo (kustomize) | 15        |
-| LiveKit server       | v1.9.0  | livekit               | argo (helm)      | 16        |
-| LiveKit routes       |         | livekit               | argo (kustomize) | 17        |
-| LiveKit client       |         | livekit               | argo (kustomize) | 17        |
-| LiveKit Ingress      | v1.2.2  | livekit               | argo (helm)      | 17        |
-| LiveKit RTSP source  |         | livekit               | argo (kustomize) | 18        |
+| MediaMTX origin      | v1.20.0 | mediamtx             | argo (kustomize) | 18        |
+| MediaMTX replicas    | v1.20.0 | mediamtx             | argo (kustomize) | 19        |
+| MediaMTX source      |         | mediamtx             | argo (kustomize) | 19        |
+| MediaMTX routes      |         | mediamtx             | argo (kustomize) | 20        |
 
 ## Bootstrap
 
@@ -98,10 +93,10 @@ ArgoCD then installs everything else via sync waves:
 - **Wave 2**: k8s-gateway DNS (needs Gateway API CRDs registered at startup), Keycloak CR + CNPG Cluster
 - **Wave 4**: Envoy+Keycloak OIDC PoC (backends, HTTPRoutes, SecurityPolicy)
 - **Wave 10**: STUNner control plane (Helm chart — operator + auth service)
-- **Wave 15**: STUNner TURN Gateway config, LiveKit's Redis
-- **Wave 16**: LiveKit server (Helm chart, wired to STUNner as its TURN/STUN server)
-- **Wave 17**: LiveKit HTTPRoute (signaling) + STUNner UDPRoute (media relay to LiveKit) + LiveKit React test client + LiveKit Ingress (RTMP/WHIP)
-- **Wave 18**: RTSP test source (looping pattern) + RTMP relay into LiveKit Ingress
+- **Wave 15**: STUNner TURN Gateway config
+- **Wave 18**: MediaMTX origin
+- **Wave 19**: MediaMTX read replicas + video publishers
+- **Wave 20**: MediaMTX HTTPRoutes (HLS, WebRTC/WHEP) + STUNner UDPRoute (WebRTC media)
 
 ## Adding a new cluster
 
@@ -140,11 +135,23 @@ See [examples/realm-import-poc.yaml](examples/realm-import-poc.yaml) for the ful
 
 Apply with: `kubectl apply -f examples/realm-import-poc.yaml`
 
-### LiveKit RTSP source (manual ingress registration)
+### MediaMTX (scalable HLS / WebRTC)
 
-LiveKit Ingress only accepts RTMP or WHIP push (or HTTP-file/HLS pull) — it cannot pull RTSP directly. `livekit-rtsp-source` is three containers in one pod: `mediamtx` (a plain RTSP server — ffmpeg has no server-side "serve for read" RTSP support, only demuxer-side listen for receiving a push, so a real RTSP server is needed here), `rtsp-publisher` (ffmpeg pushing a looping synthetic test pattern into it), and `rtmp-relay` (ffmpeg pulling that RTSP stream back out and pushing it into LiveKit via RTMP). The RTSP leg is independently testable, e.g. `ffplay rtsp://<pod-ip>:8554/stream`. The RTMP push URL is generated per-Ingress by LiveKit's `CreateIngress` API (there's no way to pin a stream key), so registering it is a **manual** step kept out of GitOps, same reasoning as the Keycloak realm import above.
+Implements the [read replica](https://mediamtx.org/docs/features/scalability) pattern, with Envoy Gateway in place of Traefik and STUNner carrying WebRTC media:
 
-Run [examples/create-livekit-ingress.sh](examples/create-livekit-ingress.sh) once the `livekit` Applications are synced. It signs an admin JWT, calls `CreateIngress` for room `room` / identity `camera-1`, and stores the returned RTMP URL in the `livekit-ingress-stream-key` Secret, which the `rtmp-relay` container in `livekit-rtsp-source` picks up automatically (it polls for the file, no pod restart needed). Re-running the script registers a new Ingress each time — LiveKit has no upsert-by-name, so this isn't idempotent, but is harmless for a lab.
+```
+ffmpeg (loop) --RTSP--> mediamtx-origin <--RTSP pull (on demand, 1 per replica per path)-- mediamtx-replica x2-3
+browser --HTTPS--> Envoy (cookie-sticky) --> mediamtx-replica :8888 HLS / :8889 WHEP signalling
+browser --TURN/UDP 30478--> STUNner --UDP--> replica pod IP :8189 (WebRTC media)
+```
 
-Watch the room in the [LiveKit client](#components) at `https://livekit-client.minikube.home` (or any WHIP/room viewer) with LiveKit URL `wss://livekit.minikube.home` to see the looping test pattern.
+- **Origin** accepts publishers on any path over RTSP/TCP; it is not exposed outside the cluster.
+- **Replicas** proxy every path (`~^(.+)$`) from the origin with `sourceOnDemand`, so the origin sees one reader per replica, not per viewer. They advertise their pod IP as the ICE host candidate on a fixed UDP port (8189) and hand the STUNner TURN server to browsers (`clientOnly`); the TURN URL is set per overlay and credentials come from `mediamtx-turn-credentials` via `MTX_WEBRTCICESERVERS2_0_*` env vars.
+- **Stickiness** uses Gateway API `sessionPersistence` (cookie `mtx-hls` / `mtx-webrtc`): HLS muxers and WHEP sessions live on the replica that created them. Envoy's cookie pins the actual endpoint, so scaling does not reshuffle existing viewers.
+- **Sources**: on first start `mediamtx-source` downloads Big Buck Bunny into the `mediamtx-media` PVC and transcodes it once (H264 without B-frames, 2s GOP, Opus — MediaMTX does not transcode, and WebRTC needs Opus and no B-frames), then loops it with `-c copy` as path `bbb`. A second container publishes a synthetic test pattern as `testsrc`. Opus-in-fMP4 HLS plays in Chrome/Firefox (hls.js); Safari is spotty.
 
+Try it:
+
+- HLS: `https://hls.minikube.home/bbb` (built-in hls.js player) or `https://hls.minikube.home/bbb/index.m3u8`
+- WebRTC: `https://webrtc.minikube.home/bbb` — `chrome://webrtc-internals` should show a relay candidate pair via `192.168.39.135:30478`
+- Same for `testsrc`. HLS needs a cookie-aware client (MediaMTX does a cookie check, and stickiness relies on it) — browsers are fine, plain `curl` needs `-L -c jar -b jar`.

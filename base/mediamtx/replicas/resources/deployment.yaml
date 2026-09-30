@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mediamtx-replica
+  namespace: mediamtx
+spec:
+  selector:
+    matchLabels:
+      app: mediamtx-replica
+  template:
+    metadata:
+      labels:
+        app: mediamtx-replica
+    spec:
+      containers:
+        - name: mediamtx
+          image: bluenviron/mediamtx:1.20.0
+          args: ["/config/mediamtx.yml"]
+          env:
+            - name: MTX_WEBRTCICESERVERS2_0_URL
+              value: turn:TURN_HOST:30478?transport=udp
+            - name: MTX_WEBRTCICESERVERS2_0_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mediamtx-turn-credentials
+                  key: username
+            - name: MTX_WEBRTCICESERVERS2_0_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mediamtx-turn-credentials
+                  key: password
+          ports:
+            - name: hls
+              containerPort: 8888
+              protocol: TCP
+            - name: webrtc
+              containerPort: 8889
+              protocol: TCP
+            - name: webrtc-udp
+              containerPort: 8189
+              protocol: UDP
+          readinessProbe:
+            tcpSocket:
+              port: webrtc
+          resources:
+            requests:
+              cpu: 200m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          configMap:
+            name: mediamtx-replica-config

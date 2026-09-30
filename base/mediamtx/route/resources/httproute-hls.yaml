@@ -1,0 +1,29 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mediamtx-hls
+  namespace: mediamtx
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: envoy-gateway-system
+      name: GATEWAY_NAME
+      sectionName: https-terminated
+  hostnames:
+    - hls.CLUSTER_DOMAIN
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: mediamtx-replica
+          port: 8888
+          weight: 1
+      # Sticky to one replica: HLS muxers (playlists/segments) are per-replica.
+      sessionPersistence:
+        sessionName: mtx-hls
+        type: Cookie
