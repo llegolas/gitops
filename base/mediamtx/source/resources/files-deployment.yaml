@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mediamtx-files
+  namespace: mediamtx
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mediamtx-files
+  template:
+    metadata:
+      labels:
+        app: mediamtx-files
+    spec:
+      containers:
+        # Loops every /videos/<name>.mkv into the origin as path <name>, with
+        # -c copy. The files are expected to be pre-transcoded by
+        # examples/upload-mediamtx-video.sh (MediaMTX does not transcode).
+        # The mediamtx-videos PVC is managed outside GitOps; restart this
+        # Deployment after adding files.
+        - name: publisher
+          image: jrottenberg/ffmpeg:8.1.2-ubuntu2404-amd64
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              # PID 1: exit (and stop the ffmpeg loops) promptly on SIGTERM.
+              trap 'trap - TERM; kill 0; exit 0' TERM
+              shopt -s nullglob
+              files=(/videos/*.mkv)
+              [ ${#files[@]} -eq 0 ] && echo "no /videos/*.mkv found"
+              for f in "${files[@]}"; do
+                name=$(basename "$f" .mkv)
+                echo "publishing $f as $name"
+                while true; do
+                  ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i "$f" \
+                    -c copy -rtsp_transport tcp -f rtsp "rtsp://mediamtx-origin:8554/$name"
+                  sleep 2
+                done &
+              done
+              sleep infinity &
+              wait
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: videos
+              mountPath: /videos
+              readOnly: true
+      volumes:
+        - name: videos
+          persistentVolumeClaim:
+            claimName: mediamtx-videos
+            readOnly: true

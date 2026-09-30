@@ -1,0 +1,14 @@
+# Video library for the mediamtx-files publisher. Kept out of GitOps so the
+# uploaded files survive app deletion/re-sync. Apply once, then fill it with
+# examples/upload-mediamtx-video.sh.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mediamtx-videos
+  namespace: mediamtx
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

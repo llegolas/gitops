@@ -13,7 +13,9 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 ├── examples/                          # Scripts and manifests for manual steps
 │   ├── 99-minikube.sh                 # NetworkManager dispatch script for DNS
 │   ├── realm-import-poc.yaml          # Keycloak realm import CR
-│   └── create-oidc-secret.sh          # OIDC client secret creation
+│   ├── create-oidc-secret.sh          # OIDC client secret creation
+│   ├── mediamtx-videos-pvc.yaml       # PVC for MediaMTX video files (outside GitOps)
+│   └── upload-mediamtx-video.sh       # Transcode a local video + copy it into that PVC
 ├── base/
 │   ├── argocd/                        # Upstream manifests + routes
 │   ├── cert-manager/
@@ -37,7 +39,7 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   └── mediamtx/
 │       ├── origin/                    # Single MediaMTX origin (RTSP ingest, cluster-internal)
 │       ├── replicas/                  # MediaMTX read replicas (HLS + WebRTC), HPA 2-3
-│       ├── source/                    # ffmpeg publishers: looped Big Buck Bunny + test pattern
+│       ├── source/                    # ffmpeg publishers: looped files from a PVC + test pattern
 │       └── route/                     # Sticky HTTPRoutes (HLS, WHEP) + STUNner UDPRoute (media)
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
@@ -148,9 +150,24 @@ browser --TURN/UDP 30478--> STUNner --UDP--> replica pod IP :8189 (WebRTC media)
 - **Origin** accepts publishers on any path over RTSP/TCP; it is not exposed outside the cluster.
 - **Replicas** proxy every path (`~^(.+)$`) from the origin with `sourceOnDemand`, so the origin sees one reader per replica, not per viewer. They advertise their pod IP as the ICE host candidate on a fixed UDP port (8189) and hand the STUNner TURN server to browsers (`clientOnly`); the TURN URL is set per overlay and credentials come from `mediamtx-turn-credentials` via `MTX_WEBRTCICESERVERS2_0_*` env vars.
 - **Stickiness** uses Gateway API `sessionPersistence` (cookie `mtx-hls` / `mtx-webrtc`): HLS muxers and WHEP sessions live on the replica that created them. Envoy's cookie pins the actual endpoint, so scaling does not reshuffle existing viewers.
-- **Sources**: on first start `mediamtx-source` downloads Big Buck Bunny into the `mediamtx-media` PVC and transcodes it once (H264 without B-frames, 2s GOP, Opus — MediaMTX does not transcode, and WebRTC needs Opus and no B-frames), then loops it with `-c copy` as path `bbb`. A second container publishes a synthetic test pattern as `testsrc`. Opus-in-fMP4 HLS plays in Chrome/Firefox (hls.js); Safari is spotty.
+- **Sources**: `mediamtx-files` loops every `*.mkv` on the `mediamtx-videos` PVC into the origin with `-c copy`, published under the file name (`bbb.mkv` → path `bbb`). `mediamtx-testsrc` publishes a synthetic test pattern as `testsrc` and needs no files. Opus-in-fMP4 HLS plays in Chrome/Firefox (hls.js); Safari is spotty.
 
-Try it:
+#### Video files (manual, outside GitOps)
+
+The PVC and its contents are kept out of GitOps, same reasoning as the Keycloak realm import: they're data, not config. `mediamtx-files` stays `Pending` until the PVC exists.
+
+```bash
+kubectl apply -f examples/mediamtx-videos-pvc.yaml
+
+# e.g. Big Buck Bunny (blender.org only serves it zipped)
+curl -fLO https://download.blender.org/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4.zip
+unzip bbb_sunflower_1080p_30fps_normal.mp4.zip
+examples/upload-mediamtx-video.sh bbb_sunflower_1080p_30fps_normal.mp4 bbb
+```
+
+[examples/upload-mediamtx-video.sh](examples/upload-mediamtx-video.sh) transcodes locally (in the same ffmpeg image the cluster uses) to H264 Constrained Baseline 720p30 with a fixed 2s GOP and Opus audio — MediaMTX does not transcode, and WebRTC needs no B-frames and Opus — then copies the result into the PVC through a throwaway pod and restarts `mediamtx-files`.
+
+#### Try it
 
 - HLS: `https://hls.minikube.home/bbb` (built-in hls.js player) or `https://hls.minikube.home/bbb/index.m3u8`
 - WebRTC: `https://webrtc.minikube.home/bbb` — `chrome://webrtc-internals` should show a relay candidate pair via `192.168.39.135:30478`
