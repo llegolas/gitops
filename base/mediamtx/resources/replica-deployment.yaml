@@ -38,6 +38,14 @@ spec:
                   name: mediamtx-hls-cdn
                   key: secret
                   optional: true
+            # Requests arrive through Envoy (and, for HLS, the CDN stand-in),
+            # so the client IP is taken from X-Forwarded-For when the peer is in
+            # these networks -- for logs and the auth hook's "ip". Only affects
+            # reporting: no access decision uses the IP.
+            - name: MTX_HLSTRUSTEDPROXIES
+              value: POD_CIDR
+            - name: MTX_WEBRTCTRUSTEDPROXIES
+              value: POD_CIDR
           ports:
             - name: hls
               containerPort: 8888

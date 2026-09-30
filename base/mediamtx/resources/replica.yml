@@ -66,8 +66,8 @@ pathDefaults:
 
 # Streams: WebRTC cameras are named <cabinet>/<camera>, HLS cameras
 # hls/<cabinet>/<camera> (CDN requests skip auth, so the prefix is what keeps
-# WebRTC cameras off the CDN: Envoy maps CDN URLs /<cabinet>/<camera>/... to
-# /hls/<cabinet>/<camera>/..., and the token service refuses hls/ paths).
+# WebRTC cameras off the CDN: Envoy only routes /hls/... to HLS, and the token
+# service refuses hls/ paths). CDN URLs are /hls/<cabinet>/<camera>/...
 # In production the config service adds them through the API
 # (POST /v3/config/paths/add/<name>). PoC: one camera of each kind, pulled
 # from the camera simulator (base/camera-sim).

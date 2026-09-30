@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
   - ../../../../base/mediamtx/resources
 # Everything cluster-specific lives here (future Helm values):
-# gateway, domain, TURN address, public WebRTC URL.
+# gateway, domain, TURN address, pod CIDR, public WebRTC URL.
 patches:
   - target:
       kind: Deployment
@@ -21,6 +21,11 @@ patches:
                 env:
                   - name: MTX_WEBRTCICESERVERS2_0_URL
                     value: turn:192.168.39.135:30478?transport=udp
+                  # Pod network (Envoy, cdn-sim): trusted X-Forwarded-For sources.
+                  - name: MTX_HLSTRUSTEDPROXIES
+                    value: 10.244.0.0/16
+                  - name: MTX_WEBRTCTRUSTEDPROXIES
+                    value: 10.244.0.0/16
   - target:
       kind: Deployment
       name: mediamtx-token

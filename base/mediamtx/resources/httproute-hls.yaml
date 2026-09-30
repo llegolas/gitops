@@ -1,9 +1,12 @@
 # CDN origin for HLS (CloudFront/Cloudflare; cdn-sim in the PoC). Public CDN
-# URLs are /<cabinet>/<camera>/...; they are mapped to the hls/ path prefix
-# that only HLS cameras have, so WebRTC cameras can't be pulled through the
-# CDN (CDN requests skip MediaMTX auth). No cookie stickiness: a Set-Cookie
-# would stop CDNs from caching -- mediamtx-hls-by-stream pins each camera to
-# one replica instead, keyed on the X-Mtx-Stream header the CDN adds.
+# URLs are /hls/<cabinet>/<camera>/..., identical to the MediaMTX path names
+# of HLS cameras, so no rewrite is needed and MediaMTX's own redirects stay
+# valid. Only /hls/... is routed: CDN requests skip MediaMTX auth, so WebRTC
+# cameras (<cabinet>/<camera>) must not be reachable here -- they get a 404
+# from Envoy (which normalizes the path first, so /hls/../ can't escape).
+# No cookie stickiness: a Set-Cookie would stop CDNs from caching --
+# mediamtx-hls-by-stream pins each camera to one replica instead, keyed on the
+# X-Mtx-Stream header the CDN adds.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -22,32 +25,10 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /
-      filters:
-        - type: ExtensionRef
-          extensionRef:
-            group: gateway.envoyproxy.io
-            kind: HTTPRouteFilter
-            name: mediamtx-hls-prefix
+            value: /hls
       backendRefs:
         - group: ""
           kind: Service
           name: mediamtx-replica
           port: 8888
           weight: 1
----
-# /<cabinet>/<camera>/... -> /hls/<cabinet>/<camera>/...
-# (Gateway API's ReplacePrefixMatch "/" -> "/hls/" drops the slash in Envoy
-# Gateway and yields /hlscabinet1/..., hence an explicit regex rewrite.)
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: HTTPRouteFilter
-metadata:
-  name: mediamtx-hls-prefix
-  namespace: mediamtx
-spec:
-  urlRewrite:
-    path:
-      type: ReplaceRegexMatch
-      replaceRegexMatch:
-        pattern: "^/"
-        substitution: /hls/
