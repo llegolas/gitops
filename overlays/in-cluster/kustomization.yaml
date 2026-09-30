@@ -7,6 +7,5 @@ resources:
   - envoy
   - dns-gateway
   - stunner
-  - livekit
   - argocd
   - mediamtx
