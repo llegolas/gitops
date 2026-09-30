@@ -1,0 +1,47 @@
+# Sets X-Mtx-Stream: <cabinet>/<camera> from the request path (before the
+# hls/ rewrite), overwriting anything the client sent. It is the hash key for
+# mediamtx-hls-by-stream; doing it here keeps the CDN config down to one
+# static header.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyExtensionPolicy
+metadata:
+  name: mediamtx-hls-stream-key
+  namespace: mediamtx
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: mediamtx-hls
+  lua:
+    - type: Inline
+      inline: |
+        function envoy_on_request(handle)
+          local path = handle:headers():get(":path") or ""
+          local stream = string.match(path, "^/([^/?]+/[^/?]+)")
+          if stream then
+            handle:headers():replace("x-mtx-stream", stream)
+          else
+            handle:headers():remove("x-mtx-stream")
+          end
+        end
+---
+# All requests of one camera go to the same replica: each replica builds its
+# own HLS segments (random name prefix, own numbering), so a playlist from one
+# replica and segments from another don't match. Also means one camera pull
+# per HLS camera, however many viewers the CDN serves.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: mediamtx-hls-by-stream
+  namespace: mediamtx
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: mediamtx-hls
+  loadBalancer:
+    type: ConsistentHash
+    consistentHash:
+      type: Headers
+      headers:
+        - name: x-mtx-stream

@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdn-sim
+  namespace: cdn-sim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cdn-sim
+  template:
+    metadata:
+      labels:
+        app: cdn-sim
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.29-alpine
+          env:
+            # Envoy's in-cluster address, and the HLS origin hostname it routes.
+            - name: ORIGIN_ADDRESS
+              value: ENVOY_SERVICE:443
+            - name: ORIGIN_HOST
+              value: hls.CLUSTER_DOMAIN
+            - name: CDN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mediamtx-hls-cdn
+                  key: secret
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/templates
+              readOnly: true
+            - name: cache
+              mountPath: /var/cache/nginx
+      volumes:
+        - name: config
+          configMap:
+            name: cdn-sim-config
+        - name: cache
+          emptyDir:
+            sizeLimit: 2Gi

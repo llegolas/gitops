@@ -10,3 +10,4 @@ resources:
   - argocd
   - camera-sim
   - mediamtx
+  - cdn-sim

@@ -29,6 +29,15 @@ spec:
                 secretKeyRef:
                   name: mediamtx-turn-credentials
                   key: password
+            # Shared with the CDN (examples/create-mediamtx-cdn-secret.sh).
+            # Optional: without it CDN mode is off and all HLS is denied,
+            # WebRTC keeps working.
+            - name: MTX_HLSCDNSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mediamtx-hls-cdn
+                  key: secret
+                  optional: true
           ports:
             - name: hls
               containerPort: 8888

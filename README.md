@@ -16,7 +16,8 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   ├── create-oidc-secret.sh          # OIDC client secret creation
 │   ├── mediamtx-videos-pvc.yaml       # PVC for MediaMTX video files (outside GitOps)
 │   ├── upload-mediamtx-video.sh       # Transcode a local video + copy it into that PVC
-│   └── create-mediamtx-token-secret.sh # Token signing key, /token API key, replica API credentials
+│   ├── create-mediamtx-token-secret.sh # Token signing key, /token API key, replica API credentials
+│   └── create-mediamtx-cdn-secret.sh  # hlsCDNSecret shared by the replicas and the CDN
 ├── base/
 │   ├── argocd/                        # Upstream manifests + routes
 │   ├── cert-manager/
@@ -38,8 +39,9 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   │   ├── operator/                  # STUNner Helm chart (control plane)
 │   │   └── config/                    # GatewayConfig + GatewayClass + Gateway (TURN)
 │   ├── camera-sim/                    # PoC camera simulator (RTSP) + ffmpeg publishers; not part of MediaMTX
+│   ├── cdn-sim/                       # PoC CDN stand-in (nginx cache) for CloudFront/Cloudflare; not part of MediaMTX
 │   └── mediamtx/                      # Single app, flat resources/ (future Helm chart):
-│                                      #   replicas (HLS + WebRTC + API), token service, routes, STUNner UDPRoute
+│                                      #   replicas (HLS + WebRTC + API), token service, routes, HLS hash policy, STUNner UDPRoute
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
     ├── kustomization.yaml             # Lists all app groups
@@ -51,6 +53,7 @@ It is tested to be working on Fedora Linux but your mileage can vary.
     ├── keycloak/                      # Aggregates operator, server
     ├── stunner/                       # Aggregates operator, config
     ├── camera-sim/
+    ├── cdn-sim/
     └── mediamtx/                      # All cluster-specific values (≈ future Helm values)
 ```
 
@@ -75,6 +78,7 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | STUNner config       |         | stunner               | argo (kustomize) | 15        |
 | Camera simulator     | v1.20.0 | mediamtx             | argo (kustomize) | 18        |
 | MediaMTX             | v1.20.0 | mediamtx             | argo (kustomize) | 18        |
+| CDN simulator        | nginx   | cdn-sim              | argo (kustomize) | 18        |
 
 ## Bootstrap
 
@@ -94,7 +98,7 @@ ArgoCD then installs everything else via sync waves:
 - **Wave 4**: Envoy+Keycloak OIDC PoC (backends, HTTPRoutes, SecurityPolicy)
 - **Wave 10**: STUNner control plane (Helm chart — operator + auth service)
 - **Wave 15**: STUNner TURN Gateway config
-- **Wave 18**: MediaMTX (replicas, token service, HTTPRoutes, STUNner UDPRoute) + PoC camera simulator
+- **Wave 18**: MediaMTX (replicas, token service, HTTPRoutes, STUNner UDPRoute) + PoC camera and CDN simulators
 
 ## Adding a new cluster
 
@@ -139,19 +143,42 @@ Identical, horizontally scaled MediaMTX replicas, each configured with **every**
 
 ```
 camera (RTSP) <--pull on demand-- mediamtx-replica x2-3 (all streams, via API)  <-- config service (:9997, headless svc)
-browser --HTTPS--> Envoy (cookie-sticky) --> mediamtx-replica :8888 HLS / :8889 WHEP signalling
+viewer --> CDN (cache) --Bearer hlsCDNSecret--> Envoy hls.<domain> (hash by camera) --> mediamtx-replica :8888 HLS
+browser --HTTPS--> Envoy webrtc.<domain> (cookie-sticky) --> mediamtx-replica :8889 WHEP signalling
 browser --TURN/UDP 30478--> STUNner --UDP--> replica pod IP :8189 (WebRTC media)
 ```
 
-- **Streams** are programmed by an external config service through each replica's control API (`POST /v3/config/paths/add/<cabinet>/<camera>` with just `{"source": "rtsp://<camera>"}` — `pathDefaults` sets `sourceOnDemand`/`rtspTransport`). API changes live in memory only; the config service watches for new pods and reconciles them. It reaches each pod through the headless `mediamtx-replica-api` Service (`publishNotReadyAddresses`), authenticated with Basic auth (`mediamtx-api-user`/`-password` from the token Secret). For the PoC, `replica.yml` has two static paths instead: `cabinet1/camera1` (→ camera-sim `bbb`) and `cabinet1/camera2` (→ camera-sim `testsrc`).
+- **Streams** are programmed by an external config service through each replica's control API (`POST /v3/config/paths/add/<cabinet>/<camera>` with just `{"source": "rtsp://<camera>"}` — `pathDefaults` sets `sourceOnDemand`/`rtspTransport`). API changes live in memory only; the config service watches for new pods and reconciles them. It reaches each pod through the headless `mediamtx-replica-api` Service (`publishNotReadyAddresses`), authenticated with Basic auth (`mediamtx-api-user`/`-password` from the token Secret). For the PoC, `replica.yml` has two static paths instead: WebRTC camera `cabinet1/camera1` (→ camera-sim `bbb`) and HLS camera `hls/cabinet1/camera2` (→ camera-sim `testsrc`).
 - **WebRTC**: replicas advertise their pod IP as the ICE host candidate on a fixed UDP port (8189) and hand the STUNner TURN server to browsers (`clientOnly`); the TURN URL is set in the overlay and credentials come from `mediamtx-turn-credentials` via `MTX_WEBRTCICESERVERS2_0_*` env vars.
-- **Stickiness** uses Gateway API `sessionPersistence` (cookie `mtx-hls` / `mtx-webrtc`): HLS muxers and WHEP sessions live on the replica that created them. Envoy's cookie pins the actual endpoint, so scaling does not reshuffle existing viewers.
-- **Cameras and HLS**: HLS viewers of one camera on different replicas each open their own RTSP session to the camera (up to one per replica) — check the camera's session limit.
+- **HLS and WebRTC cameras are disjoint.** WebRTC cameras are named `<cabinet>/<camera>`, HLS cameras `hls/<cabinet>/<camera>` — the prefix is what keeps WebRTC cameras off the CDN (see below).
+- **WebRTC stickiness** uses Gateway API `sessionPersistence` (cookie `mtx-webrtc`): WHEP sessions live on the replica that created them; Envoy's cookie pins the actual endpoint, so scaling does not reshuffle existing viewers.
+
+#### HLS through a CDN (CloudFront / Cloudflare)
+
+HLS is CDN-only. `hls.<domain>` is the CDN origin; viewers use the CDN URL `/<cabinet>/<camera>/index.m3u8`.
+
+- **MediaMTX** (global settings): `hlsVariant: fmp4` (LL-HLS playlists are `no-cache`), `hlsSegmentDuration: 6s` × `hlsSegmentCount: 30` = the **last 3 minutes**, `hlsCDNSecret` (Secret `mediamtx-hls-cdn`). Requests carrying `Authorization: Bearer <hlsCDNSecret>` skip the cookie check and auth and get cacheable responses: segments/init `public, max-age=3600`, media playlist `max-age=<segment duration>` (6s), multivariant playlist `max-age=30`. Any other HLS playback is denied by the token hook (the static player page is allowed).
+- **On demand**: the first CDN request pulls the camera and starts the window; the CDN keeps polling the playlist while anyone watches. 60s after the last request the muxer closes, 10s later the camera is released. RAM per watched HLS camera ≈ 3 min × bitrate (~67 MB at 3 Mbit/s).
+- **Envoy** (`httproute-hls.yaml`, `hls-stream-key.yaml`): rewrites `/<cabinet>/<camera>/…` to `/hls/<cabinet>/<camera>/…` (CDN requests skip auth, so only `hls/` paths are reachable — WebRTC cameras 404/500 there, and the token service refuses `hls/` paths), a Lua filter sets `X-Mtx-Stream: <cabinet>/<camera>`, and a `BackendTrafficPolicy` consistent-hashes on it: every request of one camera hits the same replica (segments are per replica — random name prefix, own numbering), so there is **one segment set and one camera pull per HLS camera** regardless of viewers. No cookie stickiness on this route (`Set-Cookie` would stop CDN caching).
+- **Scaling** moves ~1/N of the HLS cameras to another replica (their window restarts; players recover on the next playlist reload); the HPA scales down slowly (10 min stabilization).
+- **CDN configuration** — the same contract for both; everything camera-aware stays in the cluster:
+
+  | | CloudFront | Cloudflare |
+  |---|---|---|
+  | Secret to origin | origin custom header `Authorization: Bearer <secret>` | Transform Rule, request header, static `Authorization: Bearer <secret>` |
+  | Cache key | URL path only (no cookies / query strings / headers) | same, via Cache Rule |
+  | TTL | cache policy honouring origin `Cache-Control` (min 0, max ≥ 3600) | Cache Rule: eligible for cache, Edge TTL = use origin `Cache-Control` |
+  | `.m3u8` | cached per policy | **not cached by default** — the Cache Rule must include it |
+  | Origin TLS | publicly trusted certificate | same |
+
+  Check Cloudflare's plan terms for serving video through its CDN.
+- **PoC CDN** — `base/cdn-sim`, a separate app: nginx at `cdn.minikube.home` implementing that contract (adds the secret, caches by path, honours `Cache-Control`, collapses concurrent misses, `X-Cache: HIT/MISS` header). It skips TLS verification to Envoy (the cluster CA isn't distributed to its namespace).
+- **Cameras and HLS**: each HLS camera is pulled by exactly one replica.
 - **Camera simulator (PoC only)** — `base/camera-sim`, a separate app: a plain MediaMTX RTSP server that the replicas pull from like a camera. `camera-sim-files` loops every `*.mkv` on the `mediamtx-videos` PVC into it with `-c copy` (subdirectories become part of the name: `cabinet1/camera3.mkv` → `cabinet1/camera3`), `camera-sim-testsrc` publishes a synthetic test pattern as `testsrc`. Opus-in-fMP4 HLS plays in Chrome/Firefox (hls.js); Safari is spotty.
 
 #### WebRTC tokens
 
-HLS is open; WebRTC needs a per-stream token. The replicas use `authMethod: http` with `mediamtx-token` (a standard-library Python script in a ConfigMap, run on stock `python:3.14-slim`, 2 replicas) as the hook: HLS reads are allowed, WebRTC reads need a token issued for exactly that path, control-API calls need the config service's credentials, everything else is denied. `authHTTPExclude` is narrowed to `metrics`/`pprof` — the default also exempts `api`, which would expose the camera URLs and credentials. Tokens are HS256 JWTs, stateless, checked at session start (an expiring token doesn't cut a running session). A frontend coins one and hands it only to the intended viewer:
+WebRTC needs a per-stream token (HLS: see the CDN section above). The replicas use `authMethod: http` with `mediamtx-token` (a standard-library Python script in a ConfigMap, run on stock `python:3.14-slim`, 2 replicas) as the hook: HLS reads are allowed, WebRTC reads need a token issued for exactly that path, control-API calls need the config service's credentials, HLS playback outside the CDN and everything else is denied. `authHTTPExclude` is narrowed to `metrics`/`pprof` — the default also exempts `api`, which would expose the camera URLs and credentials. Tokens are HS256 JWTs, stateless, checked at session start (an expiring token doesn't cut a running session). A frontend coins one and hands it only to the intended viewer:
 
 ```bash
 curl -s -X POST https://token.minikube.home/token \
@@ -162,10 +189,11 @@ curl -s -X POST https://token.minikube.home/token \
 
 The viewer sends `Authorization: Bearer <token>` on its WHEP requests, or opens `page_url` (the built-in player forwards `?token=` to WHEP). TURN credentials (WHEP `Link` header) are only handed out after the token check. Only `POST /token` is routed through Envoy; the `/auth` hook is cluster-internal.
 
-The Secret (token signing key, `/token` API key, replica API credentials) is kept out of GitOps. **Create it before the `mediamtx` app is first synced** — the hook also gates HLS, so replicas without a running token service reject every viewer:
+The Secret (token signing key, `/token` API key, replica API credentials) is kept out of GitOps. **Create it before the `mediamtx` app is first synced** — without a running token service the replicas reject every WebRTC viewer and API call:
 
 ```bash
 examples/create-mediamtx-token-secret.sh   # prints the keys; --rotate to replace (invalidates tokens)
+examples/create-mediamtx-cdn-secret.sh     # hlsCDNSecret in mediamtx + cdn-sim; prints the CDN origin header
 ```
 
 #### Video files (manual, outside GitOps)
@@ -185,6 +213,5 @@ examples/upload-mediamtx-video.sh bbb_sunflower_1080p_30fps_normal.mp4 bbb   # -
 
 #### Try it
 
-- HLS (open): `https://hls.minikube.home/cabinet1/camera1` (built-in hls.js player) or `https://hls.minikube.home/cabinet1/camera1/index.m3u8`
-- WebRTC: get a token for `cabinet1/camera1` (above) and open its `page_url` — `chrome://webrtc-internals` should show a relay candidate pair via `192.168.39.135:30478`
-- Same for `cabinet1/camera2` (test pattern). HLS needs a cookie-aware client (MediaMTX does a cookie check, and stickiness relies on it) — browsers are fine, plain `curl` needs `-L -c jar -b jar`.
+- HLS (via the PoC CDN): `https://cdn.minikube.home/cabinet1/camera2/` (built-in hls.js player; keep the trailing slash) or `https://cdn.minikube.home/cabinet1/camera2/index.m3u8`. `curl -skI` shows `X-Cache: HIT/MISS`. Directly at `hls.minikube.home` playback is denied.
+- WebRTC: get a token for `cabinet1/camera1` (above) and open its `page_url` — `chrome://webrtc-internals` should show a relay candidate pair via `192.168.39.135:30478`.

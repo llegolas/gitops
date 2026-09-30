@@ -4,9 +4,10 @@
 # someone is watching. There is no origin.
 logLevel: info
 
-# Every HLS/WebRTC session start and every control-API call is decided by the
-# mediamtx-token hook: HLS reads are open, WebRTC reads need a token for that
-# exact path, API calls need the config service's credentials.
+# Every WebRTC session start and every control-API call is decided by the
+# mediamtx-token hook: WebRTC reads need a token for that exact path, API calls
+# need the config service's credentials. HLS is CDN-only: CDN requests carry
+# hlsCDNSecret and skip the hook, any other HLS read is denied by it.
 authMethod: http
 authHTTPAddress: http://mediamtx-token.mediamtx.svc.cluster.local:8080/auth
 # The default also excludes `api`, which would leave the API -- including the
@@ -26,8 +27,24 @@ rtmp: no
 srt: no
 moq: no
 
+# HLS is served to a CDN only (CloudFront/Cloudflare; cdn-sim in the PoC).
+# The CDN adds `Authorization: Bearer <hlsCDNSecret>` (MTX_HLSCDNSECRET env),
+# which makes MediaMTX skip the cookie check and auth and send cacheable
+# responses: segments max-age=3600, media playlist max-age=<segment duration>,
+# multivariant playlist max-age=30. Envoy routes all requests of one camera to
+# the same replica (consistent hash), since segments are per replica.
 hls: yes
 hlsAddress: :8888
+# Non-low-latency: LL-HLS playlists are sent as no-cache.
+hlsVariant: fmp4
+# 30 x 6s = the last 3 minutes are kept (and seekable) per stream while it is
+# being watched. Segments are cut on keyframes (2s GOP), so 6s is exact.
+hlsSegmentDuration: 6s
+hlsSegmentCount: 30
+# The CDN keeps polling the playlist while anyone watches; 60s after the last
+# request the muxer closes, and 10s later (sourceOnDemandCloseAfter) the camera
+# is released.
+hlsMuxerCloseAfter: 60s
 
 webrtc: yes
 webrtcAddress: :8889
@@ -47,11 +64,15 @@ pathDefaults:
   sourceOnDemand: yes
   rtspTransport: tcp
 
-# Streams are named <cabinet>/<camera>. In production the config service adds
-# them through the API (POST /v3/config/paths/add/<cabinet>/<camera>). PoC:
-# two static paths pulling from the camera simulator (base/camera-sim).
+# Streams: WebRTC cameras are named <cabinet>/<camera>, HLS cameras
+# hls/<cabinet>/<camera> (CDN requests skip auth, so the prefix is what keeps
+# WebRTC cameras off the CDN: Envoy maps CDN URLs /<cabinet>/<camera>/... to
+# /hls/<cabinet>/<camera>/..., and the token service refuses hls/ paths).
+# In production the config service adds them through the API
+# (POST /v3/config/paths/add/<name>). PoC: one camera of each kind, pulled
+# from the camera simulator (base/camera-sim).
 paths:
   cabinet1/camera1:
     source: rtsp://camera-sim.mediamtx.svc.cluster.local:8554/bbb
-  cabinet1/camera2:
+  hls/cabinet1/camera2:
     source: rtsp://camera-sim.mediamtx.svc.cluster.local:8554/testsrc

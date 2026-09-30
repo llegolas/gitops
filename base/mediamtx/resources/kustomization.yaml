@@ -9,6 +9,7 @@ resources:
   - token-deployment.yaml
   - token-service.yaml
   - httproute-hls.yaml
+  - hls-stream-key.yaml
   - httproute-webrtc.yaml
   - httproute-token.yaml
   - udproute.yaml

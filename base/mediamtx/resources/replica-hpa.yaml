@@ -17,3 +17,8 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+  # Every replica-count change moves ~1/N of the HLS cameras to another replica
+  # (consistent hash), restarting their 3-minute window -- so scale down slowly.
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600

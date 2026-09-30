@@ -5,8 +5,10 @@ POST /token   Authorization: Bearer <TOKEN_API_KEY>
               {"path": "bbb", "ttl": 300, "viewer": "alice"}
               -> 201 {"token", "path", "expires_at", "whep_url", "page_url"}
 POST /auth    MediaMTX `authMethod: http` hook (cluster-internal only):
-              HLS reads are allowed without a token, WebRTC reads need a valid
-              token for exactly that path, control API calls need the
+              WebRTC reads need a valid token for exactly that path (never
+              an hls/ path), HLS reads are denied (HLS is CDN-only: CDN
+              requests carry hlsCDNSecret and never reach the hook), control
+              API calls need the
               MEDIAMTX_API_USER/PASSWORD Basic-auth credentials (used by the
               config service), everything else is denied.
 GET  /healthz
@@ -40,6 +42,8 @@ PUBLIC_WEBRTC_URL = os.environ.get("PUBLIC_WEBRTC_URL", "").rstrip("/")
 PORT = int(os.environ.get("PORT", "8080"))
 MAX_BODY = 64 * 1024
 PATH_RE = re.compile(r"[A-Za-z0-9_.~-]+(/[A-Za-z0-9_.~-]+)*")
+# HLS cameras live under this prefix; they must never be served over WebRTC.
+HLS_PREFIX = "hls/"
 
 log = logging.getLogger("token")
 
@@ -137,6 +141,8 @@ class Handler(BaseHTTPRequestHandler):
         if (not isinstance(path, str) or not PATH_RE.fullmatch(path)
                 or any(seg in (".", "..") for seg in path.split("/"))):
             return self.reply(400, {"error": "invalid path"})
+        if path.startswith(HLS_PREFIX):
+            return self.reply(400, {"error": "hls/ paths are HLS cameras, not available over WebRTC"})
         ttl = body.get("ttl", DEFAULT_TTL)
         if isinstance(ttl, bool) or not isinstance(ttl, int) or not 1 <= ttl <= MAX_TTL:
             return self.reply(400, {"error": f"ttl must be an integer in 1..{MAX_TTL}"})
@@ -163,13 +169,19 @@ class Handler(BaseHTTPRequestHandler):
         ip, sid = body.get("ip"), body.get("id")
 
         if action == "read" and protocol == "hls":
-            log.debug("allow hls read path=%s ip=%s", path, ip)
-            return self.reply(204)
+            if sid is None:
+                # The built-in player page: MediaMTX auth-checks it even for CDN
+                # requests, but it carries no session id and serves only static
+                # HTML -- playback (a session) still needs the CDN.
+                log.debug("allow hls page path=%s ip=%s", path, ip)
+                return self.reply(204)
+            log.info("deny hls read path=%s ip=%s: HLS is CDN-only", path, ip)
+            return self.reply(401, {"error": "HLS is only available through the CDN"})
 
         if action == "read" and protocol == "webrtc":
             token = token_from_hook(body)
             claims = verify(token) if token else None
-            if claims and claims.get("path") == path:
+            if claims and claims.get("path") == path and not path.startswith(HLS_PREFIX):
                 log.info("allow webrtc read path=%s jti=%s viewer=%s ip=%s session=%s",
                          path, claims["jti"], claims.get("sub"), ip, sid)
                 return self.reply(204)

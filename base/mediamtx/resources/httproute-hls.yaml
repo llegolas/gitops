@@ -1,3 +1,9 @@
+# CDN origin for HLS (CloudFront/Cloudflare; cdn-sim in the PoC). Public CDN
+# URLs are /<cabinet>/<camera>/...; they are mapped to the hls/ path prefix
+# that only HLS cameras have, so WebRTC cameras can't be pulled through the
+# CDN (CDN requests skip MediaMTX auth). No cookie stickiness: a Set-Cookie
+# would stop CDNs from caching -- mediamtx-hls-by-stream pins each camera to
+# one replica instead.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -17,13 +23,15 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /hls/
       backendRefs:
         - group: ""
           kind: Service
           name: mediamtx-replica
           port: 8888
           weight: 1
-      # Sticky to one replica: HLS muxers (playlists/segments) are per-replica.
-      sessionPersistence:
-        sessionName: mtx-hls
-        type: Cookie

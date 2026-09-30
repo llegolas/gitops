@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../base/cdn-sim/resources
+patches:
+  - target:
+      kind: Deployment
+      name: cdn-sim
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cdn-sim
+      spec:
+        template:
+          spec:
+            containers:
+              - name: nginx
+                env:
+                  - name: ORIGIN_ADDRESS
+                    value: envoy-envoy-gateway-system-minikube-envoy-d79394a9.envoy-gateway-system.svc.cluster.local:443
+                  - name: ORIGIN_HOST
+                    value: hls.minikube.home
+  - target:
+      kind: HTTPRoute
+      name: cdn-sim
+    patch: |-
+      - op: replace
+        path: /spec/parentRefs/0/name
+        value: minikube-envoy
+      - op: replace
+        path: /spec/hostnames/0
+        value: cdn.minikube.home
