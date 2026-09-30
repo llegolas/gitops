@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camera-sim
+  namespace: mediamtx
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: camera-sim
+  template:
+    metadata:
+      labels:
+        app: camera-sim
+    spec:
+      containers:
+        - name: mediamtx
+          image: bluenviron/mediamtx:1.20.0
+          args: ["/config/mediamtx.yml"]
+          ports:
+            - name: rtsp
+              containerPort: 8554
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: rtsp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          configMap:
+            name: camera-sim-config

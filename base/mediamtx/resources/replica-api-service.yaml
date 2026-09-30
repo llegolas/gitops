@@ -1,0 +1,18 @@
+# Headless: resolves to every replica pod IP, so the config service can
+# program each pod's control API individually. publishNotReadyAddresses lets
+# it reach pods before they turn Ready.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mediamtx-replica-api
+  namespace: mediamtx
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: mediamtx-replica
+  ports:
+    - name: api
+      port: 9997
+      targetPort: api
+      protocol: TCP

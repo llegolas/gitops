@@ -1,4 +1,4 @@
-# Video library for the mediamtx-files publisher. Kept out of GitOps so the
+# Video library for the camera-sim-files publisher. Kept out of GitOps so the
 # uploaded files survive app deletion/re-sync. Apply once, then fill it with
 # examples/upload-mediamtx-video.sh.
 apiVersion: v1

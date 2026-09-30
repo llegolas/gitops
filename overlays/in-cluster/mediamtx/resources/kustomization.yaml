@@ -1,0 +1,69 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../base/mediamtx/resources
+# Everything cluster-specific lives here (future Helm values):
+# gateway, domain, TURN address, public WebRTC URL.
+patches:
+  - target:
+      kind: Deployment
+      name: mediamtx-replica
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mediamtx-replica
+      spec:
+        template:
+          spec:
+            containers:
+              - name: mediamtx
+                env:
+                  - name: MTX_WEBRTCICESERVERS2_0_URL
+                    value: turn:192.168.39.135:30478?transport=udp
+  - target:
+      kind: Deployment
+      name: mediamtx-token
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mediamtx-token
+      spec:
+        template:
+          spec:
+            containers:
+              - name: token
+                env:
+                  - name: PUBLIC_WEBRTC_URL
+                    value: https://webrtc.minikube.home
+  - target:
+      kind: HTTPRoute
+      name: mediamtx-hls
+    patch: |-
+      - op: replace
+        path: /spec/parentRefs/0/name
+        value: minikube-envoy
+      - op: replace
+        path: /spec/hostnames/0
+        value: hls.minikube.home
+  - target:
+      kind: HTTPRoute
+      name: mediamtx-webrtc
+    patch: |-
+      - op: replace
+        path: /spec/parentRefs/0/name
+        value: minikube-envoy
+      - op: replace
+        path: /spec/hostnames/0
+        value: webrtc.minikube.home
+  - target:
+      kind: HTTPRoute
+      name: mediamtx-token
+    patch: |-
+      - op: replace
+        path: /spec/parentRefs/0/name
+        value: minikube-envoy
+      - op: replace
+        path: /spec/hostnames/0
+        value: token.minikube.home

@@ -8,4 +8,5 @@ resources:
   - dns-gateway
   - stunner
   - argocd
+  - camera-sim
   - mediamtx

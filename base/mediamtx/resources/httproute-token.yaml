@@ -1,0 +1,28 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mediamtx-token
+  namespace: mediamtx
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: envoy-gateway-system
+      name: GATEWAY_NAME
+      sectionName: https-terminated
+  hostnames:
+    - token.CLUSTER_DOMAIN
+  rules:
+    # Only /token is public (API-key protected); /auth is the MediaMTX hook
+    # and stays cluster-internal.
+    - matches:
+        - path:
+            type: Exact
+            value: /token
+          method: POST
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: mediamtx-token
+          port: 8080
+          weight: 1

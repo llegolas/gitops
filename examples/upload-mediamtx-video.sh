@@ -1,7 +1,8 @@
 #!/bin/bash
 # Transcodes a local video into something both HLS and WebRTC can carry
 # (MediaMTX does not transcode) and copies it into the mediamtx-videos PVC,
-# where mediamtx-files publishes it on a loop as rtsp://mediamtx-origin:8554/<name>.
+# where camera-sim-files publishes it on a loop as rtsp://camera-sim:8554/<name>
+# (a simulated camera). <name> may contain slashes, e.g. cabinet1/camera3.
 #
 #   H264 Constrained Baseline (no B-frames, which WebRTC can't handle), 720p30,
 #   fixed 2s GOP (aligned HLS segments), Opus 48kHz stereo (WebRTC has no AAC).
@@ -12,6 +13,10 @@ set -euo pipefail
 
 IN=$(realpath "$1")
 NAME=${2:-$(basename "${IN%.*}" | tr -c 'A-Za-z0-9_-' '_')}
+if ! [[ "$NAME" =~ ^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$ ]]; then
+  echo "invalid stream name: $NAME" >&2; exit 1
+fi
+FILE=$(basename "$NAME")
 NS=mediamtx
 PVC=mediamtx-videos
 LOADER=mediamtx-videos-loader
@@ -31,7 +36,7 @@ echo "==> transcoding $IN -> $NAME.mkv"
   -c:v libx264 -preset veryfast -crf 23 -maxrate 3M -bufsize 6M \
   -pix_fmt yuv420p -profile:v baseline -bf 0 -g 60 -keyint_min 60 -sc_threshold 0 \
   -c:a libopus -b:a 128k -ar 48000 -ac 2 \
-  -f matroska "/out/$NAME.mkv"
+  -f matroska "/out/$FILE.mkv"
 
 echo "==> copying into pvc/$PVC"
 kubectl -n "$NS" apply -f - <<YAML
@@ -54,10 +59,11 @@ spec:
         claimName: $PVC
 YAML
 kubectl -n "$NS" wait --for=condition=Ready "pod/$LOADER" --timeout=120s
-kubectl -n "$NS" cp "$TMP/$NAME.mkv" "$LOADER:/videos/$NAME.mkv.part"
+kubectl -n "$NS" exec "$LOADER" -- mkdir -p "/videos/$(dirname "$NAME")"
+kubectl -n "$NS" cp "$TMP/$FILE.mkv" "$LOADER:/videos/$NAME.mkv.part"
 kubectl -n "$NS" exec "$LOADER" -- mv "/videos/$NAME.mkv.part" "/videos/$NAME.mkv"
-kubectl -n "$NS" exec "$LOADER" -- ls -la /videos
+kubectl -n "$NS" exec "$LOADER" -- find /videos -name '*.mkv' 
 
 echo "==> restarting publisher"
-kubectl -n "$NS" rollout restart deploy/mediamtx-files
-echo "done: https://hls.minikube.home/$NAME  https://webrtc.minikube.home/$NAME"
+kubectl -n "$NS" rollout restart deploy/camera-sim-files
+echo "done: rtsp://camera-sim:8554/$NAME -- add a replica path with this source to serve it"

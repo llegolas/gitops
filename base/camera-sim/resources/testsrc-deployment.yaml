@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camera-sim-testsrc
+  namespace: mediamtx
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: camera-sim-testsrc
+  template:
+    metadata:
+      labels:
+        app: camera-sim-testsrc
+    spec:
+      containers:
+        # Synthetic test pattern as path "testsrc" -- needs no media files and
+        # its frame counter makes end-to-end latency easy to eyeball. Encoded
+        # like the uploaded files: H264 Constrained Baseline, 2s GOP, Opus.
+        - name: publisher
+          image: jrottenberg/ffmpeg:8.1.2-ubuntu2404-amd64
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              # PID 1: exit (and stop ffmpeg) promptly on SIGTERM.
+              trap 'trap - TERM; kill 0; exit 0' TERM
+              while true; do
+                ffmpeg -hide_banner -loglevel warning -re \
+                  -f lavfi -i "testsrc=size=1280x720:rate=30" \
+                  -f lavfi -i "sine=frequency=1000:sample_rate=48000" \
+                  -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p \
+                  -profile:v baseline -bf 0 -g 60 -keyint_min 60 -sc_threshold 0 \
+                  -c:a libopus -b:a 64k -ac 2 \
+                  -rtsp_transport tcp -f rtsp rtsp://camera-sim:8554/testsrc
+                sleep 2
+              done &
+              wait
+          resources:
+            requests:
+              cpu: 250m
+              memory: 128Mi

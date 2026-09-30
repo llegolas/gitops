@@ -1,0 +1,17 @@
+# Camera simulator for the PoC: stands in for the real RTSP cameras that the
+# mediamtx replicas pull from. Not part of the MediaMTX deployment itself.
+# Publishers (camera-sim-files, camera-sim-testsrc) push into it over RTSP;
+# replicas pull rtsp://camera-sim:8554/<name> like they would pull a camera.
+logLevel: info
+
+rtsp: yes
+rtspAddress: :8554
+rtspTransports: [tcp]
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+moq: no
+
+paths:
+  all_others:

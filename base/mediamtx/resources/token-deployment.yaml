@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mediamtx-token
+  namespace: mediamtx
+spec:
+  # Stateless (HMAC-signed tokens), and every HLS/WebRTC session start and
+  # API call on the replicas goes through its /auth hook -- so keep more than one.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mediamtx-token
+  template:
+    metadata:
+      labels:
+        app: mediamtx-token
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: token
+          image: python:3.14-slim
+          command: ["python", "-u", "/app/token_service.py"]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PUBLIC_WEBRTC_URL
+              value: https://webrtc.CLUSTER_DOMAIN
+            - name: SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mediamtx-token-secrets
+                  key: signing-key
+            - name: TOKEN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mediamtx-token-secrets
+                  key: token-api-key
+            - name: MEDIAMTX_API_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mediamtx-token-secrets
+                  key: mediamtx-api-user
+            - name: MEDIAMTX_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mediamtx-token-secrets
+                  key: mediamtx-api-password
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: app
+          configMap:
+            name: mediamtx-token-service

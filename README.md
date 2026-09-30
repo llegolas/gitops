@@ -15,7 +15,8 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   ├── realm-import-poc.yaml          # Keycloak realm import CR
 │   ├── create-oidc-secret.sh          # OIDC client secret creation
 │   ├── mediamtx-videos-pvc.yaml       # PVC for MediaMTX video files (outside GitOps)
-│   └── upload-mediamtx-video.sh       # Transcode a local video + copy it into that PVC
+│   ├── upload-mediamtx-video.sh       # Transcode a local video + copy it into that PVC
+│   └── create-mediamtx-token-secret.sh # Token signing key, /token API key, replica API credentials
 ├── base/
 │   ├── argocd/                        # Upstream manifests + routes
 │   ├── cert-manager/
@@ -36,11 +37,9 @@ It is tested to be working on Fedora Linux but your mileage can vary.
 │   ├── stunner/
 │   │   ├── operator/                  # STUNner Helm chart (control plane)
 │   │   └── config/                    # GatewayConfig + GatewayClass + Gateway (TURN)
-│   └── mediamtx/
-│       ├── origin/                    # Single MediaMTX origin (RTSP ingest, cluster-internal)
-│       ├── replicas/                  # MediaMTX read replicas (HLS + WebRTC), HPA 2-3
-│       ├── source/                    # ffmpeg publishers: looped files from a PVC + test pattern
-│       └── route/                     # Sticky HTTPRoutes (HLS, WHEP) + STUNner UDPRoute (media)
+│   ├── camera-sim/                    # PoC camera simulator (RTSP) + ffmpeg publishers; not part of MediaMTX
+│   └── mediamtx/                      # Single app, flat resources/ (future Helm chart):
+│                                      #   replicas (HLS + WebRTC + API), token service, routes, STUNner UDPRoute
 └── overlays/<cluster>/
     ├── app-of-apps.yaml               # AppProject + Application CR
     ├── kustomization.yaml             # Lists all app groups
@@ -51,7 +50,8 @@ It is tested to be working on Fedora Linux but your mileage can vary.
     ├── envoy/                         # Aggregates crds, gateway, config
     ├── keycloak/                      # Aggregates operator, server
     ├── stunner/                       # Aggregates operator, config
-    └── mediamtx/                      # Aggregates origin, replicas, source, route
+    ├── camera-sim/
+    └── mediamtx/                      # All cluster-specific values (≈ future Helm values)
 ```
 
 Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-apps reference their `base/` counterpart and add cluster-specific patches (hostnames, gateway refs, etc.).
@@ -73,10 +73,8 @@ Each overlay group has a `kustomization.yaml` that aggregates its sub-apps. Sub-
 | Keycloak             | v26.7.0 | keycloak             | argo (kustomize) | 2         |
 | STUNner              | v1.2.1  | stunner-system        | argo (helm)      | 10        |
 | STUNner config       |         | stunner               | argo (kustomize) | 15        |
-| MediaMTX origin      | v1.20.0 | mediamtx             | argo (kustomize) | 18        |
-| MediaMTX replicas    | v1.20.0 | mediamtx             | argo (kustomize) | 19        |
-| MediaMTX source      |         | mediamtx             | argo (kustomize) | 19        |
-| MediaMTX routes      |         | mediamtx             | argo (kustomize) | 20        |
+| Camera simulator     | v1.20.0 | mediamtx             | argo (kustomize) | 18        |
+| MediaMTX             | v1.20.0 | mediamtx             | argo (kustomize) | 18        |
 
 ## Bootstrap
 
@@ -96,9 +94,7 @@ ArgoCD then installs everything else via sync waves:
 - **Wave 4**: Envoy+Keycloak OIDC PoC (backends, HTTPRoutes, SecurityPolicy)
 - **Wave 10**: STUNner control plane (Helm chart — operator + auth service)
 - **Wave 15**: STUNner TURN Gateway config
-- **Wave 18**: MediaMTX origin
-- **Wave 19**: MediaMTX read replicas + video publishers
-- **Wave 20**: MediaMTX HTTPRoutes (HLS, WebRTC/WHEP) + STUNner UDPRoute (WebRTC media)
+- **Wave 18**: MediaMTX (replicas, token service, HTTPRoutes, STUNner UDPRoute) + PoC camera simulator
 
 ## Adding a new cluster
 
@@ -139,22 +135,42 @@ Apply with: `kubectl apply -f examples/realm-import-poc.yaml`
 
 ### MediaMTX (scalable HLS / WebRTC)
 
-Implements the [read replica](https://mediamtx.org/docs/features/scalability) pattern, with Envoy Gateway in place of Traefik and STUNner carrying WebRTC media:
+Identical, horizontally scaled MediaMTX replicas, each configured with **every** stream: one path per camera, named `<cabinet>/<camera>`, with `sourceOnDemand`. Whichever replica a viewer lands on pulls that camera directly, and only while someone watches — there is no origin (with one WebRTC viewer per stream, an origin would only add a hop; see the [scalability doc](https://mediamtx.org/docs/features/scalability) for the fan-out case). Envoy Gateway replaces Traefik in front, STUNner carries WebRTC media.
 
 ```
-ffmpeg (loop) --RTSP--> mediamtx-origin <--RTSP pull (on demand, 1 per replica per path)-- mediamtx-replica x2-3
+camera (RTSP) <--pull on demand-- mediamtx-replica x2-3 (all streams, via API)  <-- config service (:9997, headless svc)
 browser --HTTPS--> Envoy (cookie-sticky) --> mediamtx-replica :8888 HLS / :8889 WHEP signalling
 browser --TURN/UDP 30478--> STUNner --UDP--> replica pod IP :8189 (WebRTC media)
 ```
 
-- **Origin** accepts publishers on any path over RTSP/TCP; it is not exposed outside the cluster.
-- **Replicas** proxy every path (`~^(.+)$`) from the origin with `sourceOnDemand`, so the origin sees one reader per replica, not per viewer. They advertise their pod IP as the ICE host candidate on a fixed UDP port (8189) and hand the STUNner TURN server to browsers (`clientOnly`); the TURN URL is set per overlay and credentials come from `mediamtx-turn-credentials` via `MTX_WEBRTCICESERVERS2_0_*` env vars.
+- **Streams** are programmed by an external config service through each replica's control API (`POST /v3/config/paths/add/<cabinet>/<camera>` with just `{"source": "rtsp://<camera>"}` — `pathDefaults` sets `sourceOnDemand`/`rtspTransport`). API changes live in memory only; the config service watches for new pods and reconciles them. It reaches each pod through the headless `mediamtx-replica-api` Service (`publishNotReadyAddresses`), authenticated with Basic auth (`mediamtx-api-user`/`-password` from the token Secret). For the PoC, `replica.yml` has two static paths instead: `cabinet1/camera1` (→ camera-sim `bbb`) and `cabinet1/camera2` (→ camera-sim `testsrc`).
+- **WebRTC**: replicas advertise their pod IP as the ICE host candidate on a fixed UDP port (8189) and hand the STUNner TURN server to browsers (`clientOnly`); the TURN URL is set in the overlay and credentials come from `mediamtx-turn-credentials` via `MTX_WEBRTCICESERVERS2_0_*` env vars.
 - **Stickiness** uses Gateway API `sessionPersistence` (cookie `mtx-hls` / `mtx-webrtc`): HLS muxers and WHEP sessions live on the replica that created them. Envoy's cookie pins the actual endpoint, so scaling does not reshuffle existing viewers.
-- **Sources**: `mediamtx-files` loops every `*.mkv` on the `mediamtx-videos` PVC into the origin with `-c copy`, published under the file name (`bbb.mkv` → path `bbb`). `mediamtx-testsrc` publishes a synthetic test pattern as `testsrc` and needs no files. Opus-in-fMP4 HLS plays in Chrome/Firefox (hls.js); Safari is spotty.
+- **Cameras and HLS**: HLS viewers of one camera on different replicas each open their own RTSP session to the camera (up to one per replica) — check the camera's session limit.
+- **Camera simulator (PoC only)** — `base/camera-sim`, a separate app: a plain MediaMTX RTSP server that the replicas pull from like a camera. `camera-sim-files` loops every `*.mkv` on the `mediamtx-videos` PVC into it with `-c copy` (subdirectories become part of the name: `cabinet1/camera3.mkv` → `cabinet1/camera3`), `camera-sim-testsrc` publishes a synthetic test pattern as `testsrc`. Opus-in-fMP4 HLS plays in Chrome/Firefox (hls.js); Safari is spotty.
+
+#### WebRTC tokens
+
+HLS is open; WebRTC needs a per-stream token. The replicas use `authMethod: http` with `mediamtx-token` (a standard-library Python script in a ConfigMap, run on stock `python:3.14-slim`, 2 replicas) as the hook: HLS reads are allowed, WebRTC reads need a token issued for exactly that path, control-API calls need the config service's credentials, everything else is denied. `authHTTPExclude` is narrowed to `metrics`/`pprof` — the default also exempts `api`, which would expose the camera URLs and credentials. Tokens are HS256 JWTs, stateless, checked at session start (an expiring token doesn't cut a running session). A frontend coins one and hands it only to the intended viewer:
+
+```bash
+curl -s -X POST https://token.minikube.home/token \
+  -H "Authorization: Bearer $TOKEN_API_KEY" \
+  -d '{"path":"cabinet1/camera1","ttl":300,"viewer":"alice"}'
+# -> {"token": "...", "path": "cabinet1/camera1", "expires_at": ..., "whep_url": ".../cabinet1/camera1/whep", "page_url": ".../cabinet1/camera1/?token=..."}
+```
+
+The viewer sends `Authorization: Bearer <token>` on its WHEP requests, or opens `page_url` (the built-in player forwards `?token=` to WHEP). TURN credentials (WHEP `Link` header) are only handed out after the token check. Only `POST /token` is routed through Envoy; the `/auth` hook is cluster-internal.
+
+The Secret (token signing key, `/token` API key, replica API credentials) is kept out of GitOps. **Create it before the `mediamtx` app is first synced** — the hook also gates HLS, so replicas without a running token service reject every viewer:
+
+```bash
+examples/create-mediamtx-token-secret.sh   # prints the keys; --rotate to replace (invalidates tokens)
+```
 
 #### Video files (manual, outside GitOps)
 
-The PVC and its contents are kept out of GitOps, same reasoning as the Keycloak realm import: they're data, not config. `mediamtx-files` stays `Pending` until the PVC exists.
+The PVC and its contents are kept out of GitOps, same reasoning as the Keycloak realm import: they're data, not config. `camera-sim-files` stays `Pending` until the PVC exists.
 
 ```bash
 kubectl apply -f examples/mediamtx-videos-pvc.yaml
@@ -162,13 +178,13 @@ kubectl apply -f examples/mediamtx-videos-pvc.yaml
 # e.g. Big Buck Bunny (blender.org only serves it zipped)
 curl -fLO https://download.blender.org/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4.zip
 unzip bbb_sunflower_1080p_30fps_normal.mp4.zip
-examples/upload-mediamtx-video.sh bbb_sunflower_1080p_30fps_normal.mp4 bbb
+examples/upload-mediamtx-video.sh bbb_sunflower_1080p_30fps_normal.mp4 bbb   # -> rtsp://camera-sim:8554/bbb
 ```
 
-[examples/upload-mediamtx-video.sh](examples/upload-mediamtx-video.sh) transcodes locally (in the same ffmpeg image the cluster uses) to H264 Constrained Baseline 720p30 with a fixed 2s GOP and Opus audio — MediaMTX does not transcode, and WebRTC needs no B-frames and Opus — then copies the result into the PVC through a throwaway pod and restarts `mediamtx-files`.
+[examples/upload-mediamtx-video.sh](examples/upload-mediamtx-video.sh) transcodes locally (in the same ffmpeg image the cluster uses) to H264 Constrained Baseline 720p30 with a fixed 2s GOP and Opus audio — MediaMTX does not transcode, and WebRTC needs no B-frames and Opus — then copies the result into the PVC through a throwaway pod and restarts `camera-sim-files`. Serving it needs a replica path with that source (the config service's job; for the PoC, add it to `replica.yml`).
 
 #### Try it
 
-- HLS: `https://hls.minikube.home/bbb` (built-in hls.js player) or `https://hls.minikube.home/bbb/index.m3u8`
-- WebRTC: `https://webrtc.minikube.home/bbb` — `chrome://webrtc-internals` should show a relay candidate pair via `192.168.39.135:30478`
-- Same for `testsrc`. HLS needs a cookie-aware client (MediaMTX does a cookie check, and stickiness relies on it) — browsers are fine, plain `curl` needs `-L -c jar -b jar`.
+- HLS (open): `https://hls.minikube.home/cabinet1/camera1` (built-in hls.js player) or `https://hls.minikube.home/cabinet1/camera1/index.m3u8`
+- WebRTC: get a token for `cabinet1/camera1` (above) and open its `page_url` — `chrome://webrtc-internals` should show a relay candidate pair via `192.168.39.135:30478`
+- Same for `cabinet1/camera2` (test pattern). HLS needs a cookie-aware client (MediaMTX does a cookie check, and stickiness relies on it) — browsers are fine, plain `curl` needs `-L -c jar -b jar`.

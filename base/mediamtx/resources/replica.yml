@@ -1,0 +1,57 @@
+# MediaMTX replica. All replicas are identical and each one has every stream
+# (one path per camera, sourceOnDemand), so any replica can serve any stream:
+# the replica a viewer lands on pulls that camera directly, and only while
+# someone is watching. There is no origin.
+logLevel: info
+
+# Every HLS/WebRTC session start and every control-API call is decided by the
+# mediamtx-token hook: HLS reads are open, WebRTC reads need a token for that
+# exact path, API calls need the config service's credentials.
+authMethod: http
+authHTTPAddress: http://mediamtx-token.mediamtx.svc.cluster.local:8080/auth
+# The default also excludes `api`, which would leave the API -- including the
+# camera source URLs and their credentials -- open to anyone in the cluster.
+authHTTPExclude:
+  - action: metrics
+  - action: pprof
+
+# Control API, used by the config service to program the streams on every pod
+# through the headless mediamtx-replica-api Service. Changes made through it
+# live in memory only: the config service reconciles new/restarted pods.
+api: yes
+apiAddress: :9997
+
+rtsp: no
+rtmp: no
+srt: no
+moq: no
+
+hls: yes
+hlsAddress: :8888
+
+webrtc: yes
+webrtcAddress: :8889
+# Media is relayed by STUNner straight to the pod IP, so a fixed port is kept
+# and the STUNner UDPRoute only opens this port.
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: ""
+webrtcIPsFromInterfaces: yes
+# STUNner TURN server, handed to browsers only (via the WHEP Link header).
+# url/username/password come from MTX_WEBRTCICESERVERS2_0_* env vars.
+webrtcICEServers2:
+  - clientOnly: yes
+
+# Applies to every path, including the ones added through the API, so the
+# config service only has to set `source` (the camera's RTSP URL).
+pathDefaults:
+  sourceOnDemand: yes
+  rtspTransport: tcp
+
+# Streams are named <cabinet>/<camera>. In production the config service adds
+# them through the API (POST /v3/config/paths/add/<cabinet>/<camera>). PoC:
+# two static paths pulling from the camera simulator (base/camera-sim).
+paths:
+  cabinet1/camera1:
+    source: rtsp://camera-sim.mediamtx.svc.cluster.local:8554/bbb
+  cabinet1/camera2:
+    source: rtsp://camera-sim.mediamtx.svc.cluster.local:8554/testsrc

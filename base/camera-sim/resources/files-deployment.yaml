@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camera-sim-files
+  namespace: mediamtx
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: camera-sim-files
+  template:
+    metadata:
+      labels:
+        app: camera-sim-files
+    spec:
+      containers:
+        # Loops every /videos/<name>.mkv into the camera simulator as path
+        # <name>, with -c copy; subdirectories become part of the name
+        # (/videos/cabinet1/camera1.mkv -> cabinet1/camera1). The files are
+        # expected to be pre-transcoded by examples/upload-mediamtx-video.sh
+        # (MediaMTX does not transcode). The mediamtx-videos PVC is managed
+        # outside GitOps; restart this Deployment after adding files.
+        - name: publisher
+          image: jrottenberg/ffmpeg:8.1.2-ubuntu2404-amd64
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              # PID 1: exit (and stop the ffmpeg loops) promptly on SIGTERM.
+              trap 'trap - TERM; kill 0; exit 0' TERM
+              mapfile -t files < <(cd /videos && find . -type f -name '*.mkv' | sed 's#^\./##' | sort)
+              [ ${#files[@]} -eq 0 ] && echo "no *.mkv found under /videos"
+              for rel in "${files[@]}"; do
+                name="${rel%.mkv}"
+                echo "publishing /videos/$rel as $name"
+                while true; do
+                  ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i "/videos/$rel" \
+                    -c copy -rtsp_transport tcp -f rtsp "rtsp://camera-sim:8554/$name"
+                  sleep 2
+                done &
+              done
+              sleep infinity &
+              wait
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: videos
+              mountPath: /videos
+              readOnly: true
+      volumes:
+        - name: videos
+          persistentVolumeClaim:
+            claimName: mediamtx-videos
+            readOnly: true

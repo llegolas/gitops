@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - turn-secret.yaml
+  - replica-deployment.yaml
+  - replica-service.yaml
+  - replica-api-service.yaml
+  - replica-hpa.yaml
+  - token-deployment.yaml
+  - token-service.yaml
+  - httproute-hls.yaml
+  - httproute-webrtc.yaml
+  - httproute-token.yaml
+  - udproute.yaml
+configMapGenerator:
+  - name: mediamtx-replica-config
+    namespace: mediamtx
+    files:
+      - mediamtx.yml=replica.yml
+  - name: mediamtx-token-service
+    namespace: mediamtx
+    files:
+      - token_service.py
