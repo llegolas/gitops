@@ -211,7 +211,7 @@ unzip bbb_sunflower_1080p_30fps_normal.mp4.zip
 examples/upload-mediamtx-video.sh bbb_sunflower_1080p_30fps_normal.mp4 bbb   # -> rtsp://camera-sim:8554/bbb
 ```
 
-[examples/upload-mediamtx-video.sh](examples/upload-mediamtx-video.sh) transcodes locally (in the same ffmpeg image the cluster uses) to H264 Constrained Baseline 720p30 with a fixed 2s GOP and Opus audio — MediaMTX does not transcode, and WebRTC needs no B-frames and Opus — then copies the result into the PVC through a throwaway pod and restarts `camera-sim-files`. Serving it needs a replica path with that source (the config service's job; for the PoC, add it to `replica.yml`).
+[examples/upload-mediamtx-video.sh](examples/upload-mediamtx-video.sh) transcodes locally (in the same ffmpeg image the cluster uses) to H264 Constrained Baseline 720p30 with a fixed 2s GOP and AAC audio, like a typical camera (WebRTC needs no B-frames; its Opus audio comes from the replicas' `runOnDemand` ffmpeg) — then copies the result into the PVC through a throwaway pod and restarts `camera-sim-files`. Serving it needs a replica path with that source (the config service's job; for the PoC, add it to `replica.yml`).
 
 #### Try it
 

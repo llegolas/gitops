@@ -1,11 +1,12 @@
 #!/bin/bash
-# Transcodes a local video into something both HLS and WebRTC can carry
-# (MediaMTX does not transcode) and copies it into the mediamtx-videos PVC,
+# Transcodes a local video into what a typical IP camera sends and copies it
+# into the mediamtx-videos PVC,
 # where camera-sim-files publishes it on a loop as rtsp://camera-sim:8554/<name>
 # (a simulated camera). <name> may contain slashes, e.g. cabinet1/camera3.
 #
 #   H264 Constrained Baseline (no B-frames, which WebRTC can't handle), 720p30,
-#   fixed 2s GOP (aligned HLS segments), Opus 48kHz stereo (WebRTC has no AAC).
+#   fixed 2s GOP (aligned HLS segments), AAC audio like a real camera -- the
+#   replicas re-encode it to Opus for WebRTC (runOnDemand ffmpeg, replica.yml).
 #
 # ffmpeg runs in the same image the cluster uses (Fedora's ffmpeg-free has no
 # libx264). Usage: upload-mediamtx-video.sh <input-file> [stream-name]
@@ -28,14 +29,14 @@ trap 'rm -rf "$TMP"; kubectl -n "$NS" delete pod "$LOADER" --ignore-not-found --
 
 echo "==> transcoding $IN -> $NAME.mkv"
 "$ENGINE" run --rm \
-  -v "$(dirname "$IN")":/in:ro,Z -v "$TMP":/out:Z \
+  -v "$IN":/in/input:ro,Z -v "$TMP":/out:Z \
   "$FFMPEG_IMAGE" -hide_banner -loglevel warning -stats -y \
-  -i "/in/$(basename "$IN")" \
+  -i /in/input \
   -map 0:v:0 -map "0:a:0?" \
   -vf "scale=1280:-2,fps=30" \
   -c:v libx264 -preset veryfast -crf 23 -maxrate 3M -bufsize 6M \
   -pix_fmt yuv420p -profile:v baseline -bf 0 -g 60 -keyint_min 60 -sc_threshold 0 \
-  -c:a libopus -b:a 128k -ar 48000 -ac 2 \
+  -c:a aac -b:a 128k -ar 48000 -ac 2 \
   -f matroska "/out/$FILE.mkv"
 
 echo "==> copying into pvc/$PVC"

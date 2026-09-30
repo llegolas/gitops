@@ -18,7 +18,8 @@ spec:
       containers:
         # Synthetic test pattern as path "testsrc" -- needs no media files and
         # its frame counter makes end-to-end latency easy to eyeball. Encoded
-        # like the uploaded files: H264 Constrained Baseline, 2s GOP, Opus.
+        # like the uploaded files: H264 Constrained Baseline, 2s GOP; Opus audio
+        # (the uploaded files use AAC, which the replicas re-encode for WebRTC).
         - name: publisher
           image: jrottenberg/ffmpeg:8.1.2-ubuntu2404-amd64
           command: ["/bin/bash", "-c"]
