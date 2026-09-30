@@ -159,20 +159,21 @@ HLS is CDN-only. `hls.<domain>` is the CDN origin; viewers use the CDN URL `/<ca
 
 - **MediaMTX** (global settings): `hlsVariant: fmp4` (LL-HLS playlists are `no-cache`), `hlsSegmentDuration: 6s` × `hlsSegmentCount: 30` = the **last 3 minutes**, `hlsCDNSecret` (Secret `mediamtx-hls-cdn`). Requests carrying `Authorization: Bearer <hlsCDNSecret>` skip the cookie check and auth and get cacheable responses: segments/init `public, max-age=3600`, media playlist `max-age=<segment duration>` (6s), multivariant playlist `max-age=30`. Any other HLS playback is denied by the token hook (the static player page is allowed).
 - **On demand**: the first CDN request pulls the camera and starts the window; the CDN keeps polling the playlist while anyone watches. 60s after the last request the muxer closes, 10s later the camera is released. RAM per watched HLS camera ≈ 3 min × bitrate (~67 MB at 3 Mbit/s).
-- **Envoy** (`httproute-hls.yaml`, `hls-stream-key.yaml`): rewrites `/<cabinet>/<camera>/…` to `/hls/<cabinet>/<camera>/…` (CDN requests skip auth, so only `hls/` paths are reachable — WebRTC cameras 404/500 there, and the token service refuses `hls/` paths), a Lua filter sets `X-Mtx-Stream: <cabinet>/<camera>`, and a `BackendTrafficPolicy` consistent-hashes on it: every request of one camera hits the same replica (segments are per replica — random name prefix, own numbering), so there is **one segment set and one camera pull per HLS camera** regardless of viewers. No cookie stickiness on this route (`Set-Cookie` would stop CDN caching).
+- **Envoy** (`httproute-hls.yaml`, `hls-hash-policy.yaml`): rewrites `/<cabinet>/<camera>/…` to `/hls/<cabinet>/<camera>/…` (CDN requests skip auth, so only `hls/` paths are reachable — WebRTC cameras 404/500 there, and the token service refuses `hls/` paths), and a `BackendTrafficPolicy` consistent-hashes on the `X-Mtx-Stream: <cabinet>/<camera>` header the CDN adds (Gateway API can only set static headers, and Lua is disabled in this Envoy Gateway): every request of one camera hits the same replica (segments are per replica — random name prefix, own numbering), so there is **one segment set and one camera pull per HLS camera** regardless of viewers. No cookie stickiness on this route (`Set-Cookie` would stop CDN caching).
 - **Scaling** moves ~1/N of the HLS cameras to another replica (their window restarts; players recover on the next playlist reload); the HPA scales down slowly (10 min stabilization).
-- **CDN configuration** — the same contract for both; everything camera-aware stays in the cluster:
+- **CDN configuration** — the same contract for both:
 
   | | CloudFront | Cloudflare |
   |---|---|---|
   | Secret to origin | origin custom header `Authorization: Bearer <secret>` | Transform Rule, request header, static `Authorization: Bearer <secret>` |
+  | Hash key to origin: `X-Mtx-Stream` = first two path segments (`/cabinet1/camera2/…` → `cabinet1/camera2`) | CloudFront Function (viewer request) sets it; add it to the origin request policy (not the cache key) | Transform Rule, request header, dynamic: `regex_replace(http.request.uri.path, "^/([^/]+/[^/]+)/.*$", "${1}")` — regex availability depends on the plan (else a Worker) |
   | Cache key | URL path only (no cookies / query strings / headers) | same, via Cache Rule |
   | TTL | cache policy honouring origin `Cache-Control` (min 0, max ≥ 3600) | Cache Rule: eligible for cache, Edge TTL = use origin `Cache-Control` |
   | `.m3u8` | cached per policy | **not cached by default** — the Cache Rule must include it |
   | Origin TLS | publicly trusted certificate | same |
 
   Check Cloudflare's plan terms for serving video through its CDN.
-- **PoC CDN** — `base/cdn-sim`, a separate app: nginx at `cdn.minikube.home` implementing that contract (adds the secret, caches by path, honours `Cache-Control`, collapses concurrent misses, `X-Cache: HIT/MISS` header). It skips TLS verification to Envoy (the cluster CA isn't distributed to its namespace).
+- **PoC CDN** — `base/cdn-sim`, a separate app: nginx at `cdn.minikube.home` implementing that contract (adds the secret and `X-Mtx-Stream` via a `map` on the path, caches by path, honours `Cache-Control`, collapses concurrent misses, `X-Cache: HIT/MISS` header). It skips TLS verification to Envoy (the cluster CA isn't distributed to its namespace).
 - **Cameras and HLS**: each HLS camera is pulled by exactly one replica.
 - **Camera simulator (PoC only)** — `base/camera-sim`, a separate app: a plain MediaMTX RTSP server that the replicas pull from like a camera. `camera-sim-files` loops every `*.mkv` on the `mediamtx-videos` PVC into it with `-c copy` (subdirectories become part of the name: `cabinet1/camera3.mkv` → `cabinet1/camera3`), `camera-sim-testsrc` publishes a synthetic test pattern as `testsrc`. Opus-in-fMP4 HLS plays in Chrome/Firefox (hls.js); Safari is spotty.
 

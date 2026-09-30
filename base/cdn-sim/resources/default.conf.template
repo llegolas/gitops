@@ -1,12 +1,20 @@
 # PoC stand-in for CloudFront/Cloudflare in front of the MediaMTX HLS origin.
 # It implements the same contract the real CDNs are configured with:
 #   - add `Authorization: Bearer <hlsCDNSecret>` to every origin request
+#   - add `X-Mtx-Stream: <cabinet>/<camera>` (from the URL path), the key
+#     Envoy consistent-hashes on so each camera always hits the same replica
 #   - cache key = URL path only (no cookies, query strings or headers)
 #   - honour the origin's Cache-Control (segments 3600s, media playlist
 #     <segment duration>, multivariant playlist 30s)
 #   - collapse concurrent misses into one origin request
 # ${VARS} are filled in by the nginx image's envsubst at startup.
 proxy_cache_path /var/cache/nginx/hls levels=1:2 keys_zone=hls:10m max_size=1g inactive=10m use_temp_path=off;
+
+# /<cabinet>/<camera>/<file> -> <cabinet>/<camera>; empty (header not sent) otherwise.
+map $uri $mtx_stream {
+    "~^/(?<stream>[^/]+/[^/]+)/"  $stream;
+    default                       "";
+}
 
 server {
     listen 8080;
@@ -27,6 +35,7 @@ server {
         proxy_ssl_verify off;
 
         proxy_set_header Authorization "Bearer ${CDN_SECRET}";
+        proxy_set_header X-Mtx-Stream $mtx_stream;
         proxy_set_header Cookie "";
 
         proxy_cache hls;

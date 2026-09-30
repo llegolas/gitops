@@ -3,7 +3,7 @@
 # that only HLS cameras have, so WebRTC cameras can't be pulled through the
 # CDN (CDN requests skip MediaMTX auth). No cookie stickiness: a Set-Cookie
 # would stop CDNs from caching -- mediamtx-hls-by-stream pins each camera to
-# one replica instead.
+# one replica instead, keyed on the X-Mtx-Stream header the CDN adds.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

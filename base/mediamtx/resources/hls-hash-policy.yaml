@@ -1,0 +1,24 @@
+# All requests of one camera go to the same replica: each replica builds its
+# own HLS segments (random name prefix, own numbering), so a playlist from one
+# replica and segments from another don't match. Also means one camera pull
+# per HLS camera, however many viewers the CDN serves.
+# The key, `X-Mtx-Stream: <cabinet>/<camera>`, is set by the CDN from the URL
+# path (CloudFront Function / Cloudflare Transform Rule; nginx map in cdn-sim)
+# -- Gateway API can only set static headers, and Lua is disabled in this
+# Envoy Gateway.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: mediamtx-hls-by-stream
+  namespace: mediamtx
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: mediamtx-hls
+  loadBalancer:
+    type: ConsistentHash
+    consistentHash:
+      type: Headers
+      headers:
+        - name: x-mtx-stream
