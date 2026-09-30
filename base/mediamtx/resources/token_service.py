@@ -93,13 +93,21 @@ def token_from_hook(body: dict) -> str:
     # MediaMTX fills "token" from `Authorization: Bearer` (or the Basic-auth
     # password); for HTTP auth it does not parse ?token= itself, but forwards
     # the raw query (the built-in player page passes it on to WHEP).
-    if body.get("token"):
-        return body["token"]
-    return urllib.parse.parse_qs(body.get("query") or "").get("token", [""])[0]
+    # Any caller in the cluster can POST here: non-string fields count as absent.
+    token, query = body.get("token"), body.get("query")
+    if token and isinstance(token, str):
+        return token
+    if not isinstance(query, str):
+        return ""
+    return urllib.parse.parse_qs(query).get("token", [""])[0]
 
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "mediamtx-token"
+    # Socket timeout for every read, including the request body: a client that
+    # declares a Content-Length and then stalls (slowloris) frees its thread
+    # after this many seconds instead of holding it forever.
+    timeout = 10
 
     def log_message(self, fmt, *args):
         log.debug("%s %s", self.address_string(), fmt % args)
@@ -129,6 +137,9 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(body, dict):
                 raise ValueError
+        except TimeoutError:  # body not sent within `timeout`
+            self.close_connection = True
+            return
         except ValueError:
             return self.reply(400, {"error": "invalid JSON body"})
         if route == "/token":

@@ -12,6 +12,10 @@ spec:
       labels:
         app: mediamtx-replica
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
       containers:
         - name: mediamtx
           # -ffmpeg variant: WebRTC paths run ffmpeg to re-encode audio to Opus.
@@ -69,6 +73,13 @@ spec:
               memory: 128Mi
             limits:
               memory: 512Mi
+          # MediaMTX and its runOnDemand ffmpeg need no root, no capabilities
+          # (all ports are >1024) and no writable filesystem.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: config
               mountPath: /config
